@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>棋盤遊戲大廳 - 西洋棋 & 跳棋</title>
+    <title>西洋棋 & 跳棋</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <style>
         /* ========================================= */
@@ -126,7 +126,7 @@
         }
         @keyframes floatUpFade { 0% { opacity: 0; bottom: 10%; transform: translateX(-50%) scale(0.8); } 10% { opacity: 1; transform: translateX(-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; bottom: 85%; transform: translateX(-50%); } }
 
-        /* --- Modal --- */
+        /* --- Modal 基礎與自訂名稱 --- */
         .modal-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: rgba(0,0,0,0.7); z-index: 2000;
             display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px);
@@ -137,6 +137,37 @@
         }
         .modal-btns { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
         .modal-btn { padding: 10px 25px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; color: white; }
+
+        /* --- 勝利動畫 Modal --- */
+        .victory-modal-box {
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 3px solid #facc15;
+            box-shadow: 0 0 40px rgba(250, 204, 21, 0.4);
+            padding: 40px 25px;
+            border-radius: 20px;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            animation: dropIn 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes dropIn {
+            0% { transform: translateY(-50px) scale(0.8); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        .victory-title {
+            font-size: 2.5em;
+            margin: 0 0 15px 0;
+            background: linear-gradient(to right, #facc15, #fb923c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0px 4px 10px rgba(250, 204, 21, 0.3);
+        }
+        .victory-subtitle {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #e2e8f0;
+            margin-bottom: 25px;
+        }
 
         /* --- 棋盤共用樣式 --- */
         .board-wrapper {
@@ -173,18 +204,35 @@
         }
         .chk-red { background-color: #ef4444; border: 2px solid #b91c1c; }
         .chk-black { background-color: #111827; border: 2px solid #000; color: white; }
-        .chk-king::after { content: '♔'; font-size: 18px; color: gold; text-shadow: 0 1px 2px black; }
+        
+        .chk-king::after { 
+            content: '♤'; 
+            font-size: 24px; 
+  	    color: #6C6C6C;
+        }
+
+        /* 必須強制吃子的動畫提示 */
+        @keyframes blinkCapture {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .must-capture-piece {
+            animation: blinkCapture 1.5s ease-in-out infinite;
+            box-shadow: 0 0 10px 4px rgba(250, 204, 21, 0.8), inset 0 2px 4px rgba(255,255,255,0.3) !important;
+            border-color: #facc15 !important;
+        }
 
         .player-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; color: #cbd5e1; }
         .turn-indicator { padding: 5px 10px; border-radius: 20px; background: rgba(0,0,0,0.3); }
-        .active-turn { background: #3b82f6; color: white; box-shadow: 0 0 10px #3b82f6; }
+        .active-turn { background: #3b82f6; color: white; }
 
     </style>
 </head>
 <body>
 
 <div id="mainMenu" class="container">
-    <h1 style="background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🎮 棋盤遊戲大廳</h1>
+    <h1 style="background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🎮 西洋棋 & 跳棋大廳</h1>
     <div style="margin-bottom: 20px; color: var(--text-muted);">
         大廳閒置: <b id="lobbyCount" style="color:#60a5fa">0</b> | 遊戲中: <b id="inGameCount" style="color:#60a5fa">0</b>
     </div>
@@ -203,7 +251,7 @@
         <input type="text" id="roomName" placeholder="未命名房間">
     </div>
     <div class="input-group">
-        <label>設定密碼 (選填):</label>
+        <label>設定密碼(輸入):</label>
         <input type="password" id="roomPass" placeholder="可留空">
     </div>
     <button class="menu-btn btn-green" onclick="createRoom()">確認創立</button>
@@ -257,15 +305,26 @@
     </div>
 </div>
 
+<div id="victoryModal" class="modal-overlay hidden" style="z-index: 3000;">
+    <div class="victory-modal-box">
+        <h2 id="victoryTitle" class="victory-title"></h2>
+        <p id="victorySubtitle" class="victory-subtitle"></p>
+        <button class="menu-btn btn-green" style="margin-top: 10px; width: 80%;" onclick="closeVictoryModal()">太棒了！</button>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, push, update, remove, onDisconnect, serverTimestamp, get, runTransaction, onChildAdded } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
+    // 更新為完整配置
     const firebaseConfig = {
         apiKey: "AIzaSyC7PZLTTNf17cfp9gCHudWiWX8SYPSCdDI",
         authDomain: "onlineeasyraygame.firebaseapp.com",
         databaseURL: "https://onlineeasyraygame-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "onlineeasyraygame"
+        projectId: "onlineeasyraygame",
+        appId: "1:622138442346:web:02745ec52f0e83ad428013",
+        measurementId: "G-PZB26XW21J"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -278,11 +337,12 @@
     let currentUserKey = null;
     let chatInitTimestamp = Date.now();
     let myName = localStorage.getItem('playerName') || `匿名玩家${Math.floor(Math.random()*99+1)}`;
+    let gameOverTriggered = false; // 控制勝利動畫是否已觸發
     
     // 遊戲狀態控制
     let chessInstance = new Chess();
-    let selectedSquare = null; // 紀錄當前選中的格子 (e.g. 'e2' 或 {r, c})
-    let validMovesCache = []; // 快取當前選中棋子的合法步數
+    let selectedSquare = null; 
+    let validMovesCache = []; 
 
     // --- 人數統計 ---
     const onlineRef = push(ref(db, 'chsgame_global/online'));
@@ -370,13 +430,27 @@
 
     // --- 創建與進入房間 ---
     function getInitialCheckersBoard() {
-        // 8x8 矩陣，null 空，'r'紅，'b'黑。紅在下方，黑在上方。
         let b = Array(8).fill(null).map(() => Array(8).fill(null));
         for(let r=0; r<8; r++) {
             for(let c=0; c<8; c++) {
-                if ((r+c)%2 !== 0) { // 只能走黑格
-                    if (r < 3) b[r][c] = { player: 'b', king: false };
-                    else if (r > 4) b[r][c] = { player: 'r', king: false };
+                if ((r+c)%2 !== 0) { 
+                    if (r < 3) b[r][c] = { player: 'b', king: false }; // 黑方在上方
+                    else if (r > 4) b[r][c] = { player: 'r', king: false }; // 紅方在下方
+                }
+            }
+        }
+        return b;
+    }
+
+    // 確保從 Firebase 取回的陣列保持 8x8 結構（避免 Firebase 自動剔除空元素）
+    function ensureCheckersBoard(fbBoard) {
+        let b = Array(8).fill(null).map(() => Array(8).fill(null));
+        if (fbBoard) {
+            for(let r=0; r<8; r++) {
+                if(fbBoard[r]) {
+                    for(let c=0; c<8; c++) {
+                        if(fbBoard[r][c]) b[r][c] = fbBoard[r][c];
+                    }
                 }
             }
         }
@@ -393,7 +467,8 @@
             roomData.fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
         } else {
             roomData.checkersBoard = getInitialCheckersBoard();
-            roomData.checkersTurn = 'r'; // 紅方先走
+            roomData.checkersTurn = 'r'; 
+            roomData.checkersActivePiece = null; // 初始化無強制連跳的棋子
         }
 
         set(roomRef, roomData).then(() => attemptJoin(roomRef.key, ""));
@@ -401,6 +476,7 @@
 
     window.enterRoom = (id) => {
         currentRoomId = id;
+        gameOverTriggered = false; // 進入房間重置動畫觸發器
         showSection('gameArea');
         document.getElementById('myNameDisplay').innerText = myName;
         chatInitTimestamp = Date.now(); 
@@ -447,15 +523,55 @@
         setTimeout(() => el.remove(), 4000);
     }
 
+    // --- 勝利動畫相關邏輯 ---
+    window.closeVictoryModal = () => {
+        document.getElementById('victoryModal').classList.add('hidden');
+    };
+
+    function showVictory(isLocal, type, resultColor, ctx) {
+        if (gameOverTriggered) return;
+        gameOverTriggered = true;
+
+        const vModal = document.getElementById('victoryModal');
+        const vTitle = document.getElementById('victoryTitle');
+        const vSub = document.getElementById('victorySubtitle');
+
+        if (resultColor === 'draw') {
+            vTitle.innerText = "🤝 平手！";
+            vSub.innerText = "雙方勢均力敵";
+        } else {
+            vTitle.innerText = "🎉 遊戲結束 🎉";
+            let colorStr = "";
+            let winnerName = "";
+
+            if (type === 'chess') {
+                colorStr = resultColor === 'w' ? '白方' : '黑方';
+                winnerName = resultColor === 'w' ? ctx.p1Name : ctx.p2Name;
+            } else {
+                colorStr = resultColor === 'r' ? '紅方' : '黑方';
+                winnerName = resultColor === 'r' ? ctx.p1Name : ctx.p2Name;
+            }
+
+            // 若為單機或尚未有第二名玩家加入，僅顯示顏色
+            if (isLocal || !ctx.p2Name) {
+                vSub.innerText = `${colorStr} 獲勝！`;
+            } else {
+                // 雙人遊戲則帶入名字
+                vSub.innerText = `恭喜 ${winnerName || '玩家'} (${colorStr}) 獲勝！`;
+            }
+        }
+        vModal.classList.remove('hidden');
+    }
+
     // --- 判斷單機/連線權限 ---
     function getGameContext(data) {
         const users = Object.keys(data.users || {}).filter(k => data.users[k].online);
         const p1 = users[0];
         const p2 = users[1];
-        const isLocal = users.length <= 1; // 只有1人時，可控雙方
+        const isLocal = users.length <= 1; 
         
-        let myColorInChess = null; // 'w' or 'b'
-        let myColorInCheckers = null; // 'r' or 'b'
+        let myColorInChess = null; 
+        let myColorInCheckers = null; 
         
         if (currentUserKey === p1) { myColorInChess = 'w'; myColorInCheckers = 'r'; }
         else if (currentUserKey === p2) { myColorInChess = 'b'; myColorInCheckers = 'b'; }
@@ -496,12 +612,10 @@
         const ctx = getGameContext(data);
         const currentTurn = chessInstance.turn();
         
-        // 判斷是否為黑方視角 (如果是黑方，則棋盤翻轉180度)
         const isBlackPerspective = (ctx.myColorInChess === 'b');
         
         for(let i=0; i<8; i++) {
             for(let j=0; j<8; j++) {
-                // 若為黑方視角，將座標映射顛倒過來繪製
                 const r = isBlackPerspective ? 7 - i : i;
                 const c = isBlackPerspective ? 7 - j : j;
 
@@ -519,7 +633,6 @@
                     cell.style.textShadow = p.color === 'w' ? '0 1px 3px #000' : '0 1px 3px #fff';
                 }
 
-                // UI 狀態：選中、可移動提示
                 if (selectedSquare === squareName) cell.classList.add('selected');
                 if (validMovesCache.some(m => m.to === squareName)) cell.classList.add('valid-move');
 
@@ -529,27 +642,34 @@
         }
 
         const statusEl = document.getElementById('game-status');
-        if (chessInstance.in_checkmate()) statusEl.innerText = "將死！遊戲結束。";
-        else if (chessInstance.in_draw()) statusEl.innerText = "平局！";
-        else if (chessInstance.in_check()) statusEl.innerText = "將軍！";
-        else statusEl.innerText = `輪到: ${currentTurn==='w'?'白方':'黑方'}`;
+        if (chessInstance.in_checkmate()) {
+            statusEl.innerText = "將死！遊戲結束。";
+            let winnerColor = chessInstance.turn() === 'w' ? 'b' : 'w'; // 如果輪到白方且被將死，則黑方贏
+            showVictory(ctx.isLocal, 'chess', winnerColor, ctx);
+        } else if (chessInstance.in_draw()) {
+            statusEl.innerText = "平局！";
+            showVictory(ctx.isLocal, 'chess', 'draw', ctx);
+        } else if (chessInstance.in_check()) {
+            statusEl.innerText = "將軍！";
+            gameOverTriggered = false; // 遊戲還在進行中，確保標記重置
+        } else {
+            statusEl.innerText = `輪到: ${currentTurn==='w'?'白方':'黑方'}`;
+            gameOverTriggered = false;
+        }
     }
 
     function handleChessClick(sqName, pieceObj, ctx, currentTurn) {
         if (chessInstance.game_over()) return;
 
-        // 判斷權限
         const canMove = ctx.isLocal || (ctx.myColorInChess === currentTurn);
         if (!canMove) return;
 
-        // 若點擊的是自己的棋子，設定為選中狀態
         if (pieceObj && pieceObj.color === currentTurn) {
             selectedSquare = sqName;
             validMovesCache = chessInstance.moves({ square: sqName, verbose: true });
             return renderChess(roomDataCache);
         }
 
-        // 若已經選中棋子，且點擊的是合法目標，則移動
         if (selectedSquare) {
             const move = validMovesCache.find(m => m.to === sqName);
             if (move) {
@@ -558,7 +678,6 @@
                 validMovesCache = [];
                 update(ref(db, `chsgame_room/${currentRoomId}`), { fen: chessInstance.fen() });
             } else {
-                // 點到無效區域取消選取
                 selectedSquare = null;
                 validMovesCache = [];
                 renderChess(roomDataCache);
@@ -569,42 +688,8 @@
     // ==========================================
     // 西洋跳棋邏輯 (Checkers)
     // ==========================================
-    function renderCheckers(data) {
-        const boardDiv = document.getElementById('game-board');
-        boardDiv.innerHTML = "";
-        const board = data.checkersBoard;
-        const ctx = getGameContext(data);
-        const currentTurn = data.checkersTurn;
 
-        for(let r=0; r<8; r++) {
-            for(let c=0; c<8; c++) {
-                const isDark = (r + c) % 2 !== 0;
-                const cell = document.createElement('div');
-                cell.className = `sq ${isDark ? 'chk-dark' : 'chk-light'}`;
-                
-                const piece = board[r][c];
-                if (piece) {
-                    const pDiv = document.createElement('div');
-                    pDiv.className = `chk-piece ${piece.player === 'r' ? 'chk-red' : 'chk-black'} ${piece.king ? 'chk-king' : ''}`;
-                    cell.appendChild(pDiv);
-                }
-
-                if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add('selected');
-                if (validMovesCache.some(m => m.r === r && m.c === c)) cell.classList.add('valid-move');
-
-                if (isDark) cell.onclick = () => handleCheckersClick(r, c, piece, board, ctx, currentTurn);
-                boardDiv.appendChild(cell);
-            }
-        }
-
-        const statusEl = document.getElementById('game-status');
-        let rCount=0, bCount=0;
-        board.forEach(row => row.forEach(p => { if(p){ p.player==='r'?rCount++:bCount++; } }));
-        if (rCount === 0) statusEl.innerText = "黑方獲勝！";
-        else if (bCount === 0) statusEl.innerText = "紅方獲勝！";
-        else statusEl.innerText = `輪到: ${currentTurn==='r'?'紅方':'黑方'}`;
-    }
-
+    // 取得合法步數 (包含一般移動與跳躍)
     function getCheckersValidMoves(r, c, piece, board) {
         const moves = [];
         const directions = piece.king ? [[-1,-1], [-1,1], [1,-1], [1,1]] : (piece.player === 'r' ? [[-1,-1], [-1,1]] : [[1,-1], [1,1]]);
@@ -619,12 +704,115 @@
             const jr = r + dr*2, jc = c + dc*2;
             if (jr>=0 && jr<8 && jc>=0 && jc<8 && !board[jr][jc]) {
                 const mid = board[nr][nc];
+                // 必須是敵方的棋子才能吃
                 if (mid && mid.player !== piece.player) {
                     moves.push({r:jr, c:jc, isJump:true, midR:nr, midC:nc});
                 }
             }
         });
         return moves;
+    }
+
+    // 取得玩家目前所有可以進行「跳躍(吃子)」的棋子座標
+    function getAllPossibleJumps(board, player) {
+        const jumpers = [];
+        for (let r=0; r<8; r++) {
+            for (let c=0; c<8; c++) {
+                const p = board[r][c];
+                if (p && p.player === player) {
+                    const jumps = getCheckersValidMoves(r, c, p, board).filter(m => m.isJump);
+                    if (jumps.length > 0) {
+                        jumpers.push({r, c});
+                    }
+                }
+            }
+        }
+        return jumpers;
+    }
+
+    function renderCheckers(data) {
+        const boardDiv = document.getElementById('game-board');
+        boardDiv.innerHTML = "";
+        
+        // 使用修復函式以防止 Firebase 自動過濾空值造成的錯誤
+        const board = ensureCheckersBoard(data.checkersBoard); 
+        const ctx = getGameContext(data);
+        const currentTurn = data.checkersTurn;
+        const isBlackPerspective = (ctx.myColorInCheckers === 'b');
+
+        // 檢查目前是否必須吃子
+        const allJumpers = getAllPossibleJumps(board, currentTurn);
+        const mandatoryPiece = data.checkersActivePiece || null; // 處理連跳強制選定的棋子
+
+        // ===== 新增: 自動鎖定並選取連續跳躍的棋子 =====
+        const canMove = ctx.isLocal || (ctx.myColorInCheckers === currentTurn);
+        if (mandatoryPiece && canMove) {
+            selectedSquare = { r: mandatoryPiece.r, c: mandatoryPiece.c };
+            const p = board[mandatoryPiece.r][mandatoryPiece.c];
+            if (p) {
+                validMovesCache = getCheckersValidMoves(mandatoryPiece.r, mandatoryPiece.c, p, board).filter(m => m.isJump);
+            }
+        }
+        // ============================================
+
+        for(let i=0; i<8; i++) {
+            for(let j=0; j<8; j++) {
+                // 將畫面的 2D 座標轉換為陣列實際邏輯座標，達到 180 度翻轉效果
+                const r = isBlackPerspective ? 7 - i : i;
+                const c = isBlackPerspective ? 7 - j : j;
+
+                const isDark = (r + c) % 2 !== 0;
+                const cell = document.createElement('div');
+                cell.className = `sq ${isDark ? 'chk-dark' : 'chk-light'}`;
+                
+                const piece = board[r][c];
+                if (piece) {
+                    const pDiv = document.createElement('div');
+                    pDiv.className = `chk-piece ${piece.player === 'r' ? 'chk-red' : 'chk-black'}`;
+                    if (piece.king) pDiv.classList.add('chk-king'); 
+
+                    // 判斷這顆棋子是否為當下「必須」去操控吃對方的棋子
+                    let isMustCapture = false;
+                    if (piece.player === currentTurn) {
+                        if (mandatoryPiece) {
+                            if (mandatoryPiece.r === r && mandatoryPiece.c === c) isMustCapture = true;
+                        } else if (allJumpers.some(j => j.r === r && j.c === c)) {
+                            isMustCapture = true;
+                        }
+                    }
+
+                    // 如果是必須操控的棋子，加上閃爍與發光的提示動畫
+                    if (isMustCapture) {
+                        pDiv.classList.add('must-capture-piece');
+                    }
+
+                    cell.appendChild(pDiv);
+                }
+
+                if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add('selected');
+                if (validMovesCache.some(m => m.r === r && m.c === c)) cell.classList.add('valid-move');
+
+                // 將實際邏輯座標 (r, c) 帶入點擊事件
+                if (isDark) cell.onclick = () => handleCheckersClick(r, c, piece, board, ctx, currentTurn);
+                boardDiv.appendChild(cell);
+            }
+        }
+
+        const statusEl = document.getElementById('game-status');
+        let rCount=0, bCount=0;
+        board.forEach(row => row.forEach(p => { if(p){ p.player==='r'?rCount++:bCount++; } }));
+        if (rCount === 0) {
+            statusEl.innerText = "黑方獲勝！";
+            showVictory(ctx.isLocal, 'checkers', 'b', ctx);
+        } else if (bCount === 0) {
+            statusEl.innerText = "紅方獲勝！";
+            showVictory(ctx.isLocal, 'checkers', 'r', ctx);
+        } else {
+            let msg = `輪到: ${currentTurn==='r'?'紅方':'黑方'}`;
+            if (mandatoryPiece || allJumpers.length > 0) msg += " (必須吃子!)";
+            statusEl.innerText = msg;
+            gameOverTriggered = false; // 遊戲還在進行中，確保標記重置
+        }
     }
 
     function handleCheckersClick(r, c, pieceObj, board, ctx, currentTurn) {
@@ -634,33 +822,86 @@
         const canMove = ctx.isLocal || (ctx.myColorInCheckers === currentTurn);
         if (!canMove) return;
 
-        // 選中自己的棋子
+        const allJumpers = getAllPossibleJumps(board, currentTurn);
+        const mandatoryPiece = roomDataCache.checkersActivePiece; // 取出正在連跳中的棋子座標
+
+        // 點擊選中自己的棋子
         if (pieceObj && pieceObj.player === currentTurn) {
+            
+            // 機制檢查：如果目前有強制連跳的棋子，只能點擊那一顆
+            if (mandatoryPiece && (mandatoryPiece.r !== r || mandatoryPiece.c !== c)) {
+                return; // 忽略點擊其他棋子
+            }
+            
+            // 機制檢查：如果場上存在可以吃對方的棋子，則只能選擇那些能吃的棋子
+            if (!mandatoryPiece && allJumpers.length > 0 && !allJumpers.some(j => j.r === r && j.c === c)) {
+                return; // 忽略點擊沒有辦法吃子的棋子
+            }
+
             selectedSquare = {r, c};
-            validMovesCache = getCheckersValidMoves(r, c, pieceObj, board);
+            let moves = getCheckersValidMoves(r, c, pieceObj, board);
+            
+            // 如果這顆棋子有跳躍(吃子)的選項，把一般移動過濾掉，強制只能吃子
+            if (moves.some(m => m.isJump)) {
+                moves = moves.filter(m => m.isJump);
+            }
+
+            validMovesCache = moves;
             return renderCheckers(roomDataCache);
         }
 
-        // 移動
+        // 執行移動邏輯
         if (selectedSquare) {
             const move = validMovesCache.find(m => m.r === r && m.c === c);
             if (move) {
-                const movingPiece = board[selectedSquare.r][selectedSquare.c];
-                board[r][c] = movingPiece;
-                board[selectedSquare.r][selectedSquare.c] = null;
+                const newBoard = JSON.parse(JSON.stringify(board));
+                const movingPiece = newBoard[selectedSquare.r][selectedSquare.c];
                 
-                if (move.isJump) board[move.midR][move.midC] = null; // 移除被吃的子
+                newBoard[r][c] = movingPiece;
+                newBoard[selectedSquare.r][selectedSquare.c] = null;
+                
+                if (move.isJump) newBoard[move.midR][move.midC] = null; // 移除被吃的子
 
-                // 升變為王
-                if (movingPiece.player === 'r' && r === 0) movingPiece.king = true;
-                if (movingPiece.player === 'b' && r === 7) movingPiece.king = true;
+                // 升變為王 (King)
+                let justBecameKing = false;
+                if (movingPiece.player === 'r' && r === 0 && !movingPiece.king) {
+                    movingPiece.king = true;
+                    justBecameKing = true;
+                }
+                if (movingPiece.player === 'b' && r === 7 && !movingPiece.king) {
+                    movingPiece.king = true;
+                    justBecameKing = true;
+                }
 
-                // 換手 (這裡為簡化，跳過連跳邏輯，每次移動皆換手)
-                const nextTurn = currentTurn === 'r' ? 'b' : 'r';
-                selectedSquare = null; validMovesCache = [];
-                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: board, checkersTurn: nextTurn });
+                let nextTurn = currentTurn;
+                let nextActivePiece = null;
+
+                // 連續吃子判定機制
+                if (move.isJump) {
+                    // 檢查到了新位置後，是否還能繼續吃子
+                    const furtherJumps = getCheckersValidMoves(r, c, movingPiece, newBoard).filter(m => m.isJump);
+                    
+                    // 如果還可以繼續吃，並且不是剛升變為國王(依照常見規則，剛升變的回合須立即結束)
+                    if (furtherJumps.length > 0 && !justBecameKing) {
+                        nextActivePiece = {r, c}; // 鎖定這顆棋子為下一步的強制作動者
+                    } else {
+                        nextTurn = currentTurn === 'r' ? 'b' : 'r'; // 結束回合
+                    }
+                } else {
+                    nextTurn = currentTurn === 'r' ? 'b' : 'r'; // 普通移動，直接換手
+                }
+
+                selectedSquare = null; 
+                validMovesCache = [];
+                
+                update(ref(db, `chsgame_room/${currentRoomId}`), { 
+                    checkersBoard: newBoard, 
+                    checkersTurn: nextTurn,
+                    checkersActivePiece: nextActivePiece
+                });
             } else {
-                selectedSquare = null; validMovesCache = [];
+                selectedSquare = null; 
+                validMovesCache = [];
                 renderCheckers(roomDataCache);
             }
         }
@@ -672,10 +913,11 @@
     window.requestRestart = () => {
         if (!roomDataCache) return;
         if (confirm("確定要重新開始嗎？")) {
+            gameOverTriggered = false; // 重置勝利動畫標記
             if (roomDataCache.type === 'chess') {
                 update(ref(db, `chsgame_room/${currentRoomId}`), { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' });
             } else {
-                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: getInitialCheckersBoard(), checkersTurn: 'r' });
+                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: getInitialCheckersBoard(), checkersTurn: 'r', checkersActivePiece: null });
             }
             selectedSquare = null; validMovesCache = [];
         }
