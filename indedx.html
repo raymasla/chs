@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>棋盤遊戲大廳 - 西洋棋 & 跳棋</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <style>
+        /* ========================================= */
+        /* --- 全局暗色系主題與動畫 (Dark Theme) --- */
+        /* ========================================= */
+        :root {
+            --bg-color: #0f172a;
+            --container-bg: rgba(30, 41, 59, 0.85);
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --primary-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(-45deg, #0f172a, #1e1b4b, #312e81, #0f172a);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+            touch-action: manipulation;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 容器美化 - 玻璃擬態 */
+        .container {
+            background: var(--container-bg);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: var(--glass-border);
+            width: 100%;
+            max-width: 550px;
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 10;
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h1, h3 { margin-top: 0; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        .hidden { display: none !important; }
+
+        /* --- 按鈕美化 --- */
+        button { font-family: inherit; }
+        .menu-btn {
+            width: 100%; padding: 16px; margin: 12px 0; font-size: 18px; cursor: pointer;
+            border: none; border-radius: 12px;
+            color: white; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative; overflow: hidden;
+        }
+        .btn-chess { background: linear-gradient(135deg, #475569, #1e293b); }
+        .btn-checkers { background: linear-gradient(135deg, #ef4444, #7f1d1d); }
+        .menu-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 8px 25px rgba(255,255,255,0.2); }
+
+        .btn-sm { border: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85em; margin-left: 6px; color: white; transition: 0.2s; font-weight: 600; }
+        .btn-green { background: var(--accent-green); }
+        .btn-red { background: var(--accent-red); }
+
+        /* --- 房間列表項目 --- */
+        .room-item {
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 15px; margin: 12px 0;
+            display: flex; justify-content: space-between; align-items: center;
+            border-radius: 12px; background: rgba(0, 0, 0, 0.2); transition: 0.3s;
+        }
+        .room-item:hover { background: rgba(255, 255, 255, 0.05); transform: translateX(5px); }
+        .room-info { text-align: left; display: flex; flex-direction: column; }
+        .room-name { font-weight: bold; font-size: 1.1em; color: #fff; }
+        .room-meta { font-size: 0.8em; color: var(--text-muted); margin-top: 4px; }
+        .status-badge { font-size: 0.75em; padding: 3px 8px; border-radius: 20px; margin-left: 8px; }
+        .status-wait { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .status-play { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+
+        input {
+            padding: 10px 15px; text-align: center; border: 1px solid #475569;
+            border-radius: 8px; background: #1e293b; color: white; outline: none; transition: 0.3s;
+            width: calc(100% - 30px); margin-top: 5px;
+        }
+        input:focus { border-color: #8b5cf6; }
+        .input-group { margin: 15px 0; text-align: left; color: var(--text-main); }
+
+        /* --- 聊天室 --- */
+        #chat-area { margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px; text-align: left; }
+        #chat-msgs { height: 120px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 10px; font-size: 0.9em; margin-bottom: 10px; }
+        .chat-input-group { display: flex; gap: 8px; }
+        .chat-input-group input { flex: 1; margin:0; width: auto; }
+        .chat-input-group button { background: #334155; border: 1px solid #475569; color: white; padding: 0 15px; border-radius: 8px; cursor: pointer; }
+        .editable-name { color: #60a5fa; font-weight: bold; cursor: pointer; border-bottom: 1px dashed #60a5fa; }
+
+        /* 浮動聊天 (Danmaku) */
+        .floating-chat-container { position: absolute; top: 0; left: 0; width: 100%; height: 60%; pointer-events: none; overflow: hidden; z-index: 900; }
+        .float-msg {
+            position: absolute; left: 50%; transform: translateX(-50%);
+            background: rgba(139, 92, 246, 0.8); color: white; padding: 6px 16px; border-radius: 20px; font-weight: bold;
+            animation: floatUpFade 4s forwards; backdrop-filter: blur(4px);
+        }
+        @keyframes floatUpFade { 0% { opacity: 0; bottom: 10%; transform: translateX(-50%) scale(0.8); } 10% { opacity: 1; transform: translateX(-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; bottom: 85%; transform: translateX(-50%); } }
+
+        /* --- Modal --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh; background: rgba(0,0,0,0.7); z-index: 2000;
+            display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px);
+        }
+        .modal-box {
+            background: linear-gradient(145deg, #1e293b, #0f172a); border: 2px solid #a78bfa;
+            padding: 25px; border-radius: 20px; text-align: center; width: 90%; max-width: 350px;
+        }
+        .modal-btns { display: flex; justify-content: center; gap: 15px; margin-top: 15px; }
+        .modal-btn { padding: 10px 25px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; color: white; }
+
+        /* --- 棋盤共用樣式 --- */
+        .board-wrapper {
+            margin: 20px auto; padding: 10px; background: #334155; border-radius: 8px;
+            display: inline-block; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .grid-board {
+            display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr);
+            width: 320px; height: 320px; border: 2px solid #1e293b;
+        }
+        .sq {
+            width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;
+            font-size: 28px; cursor: pointer; position: relative; user-select: none;
+        }
+        
+        /* 西洋棋顏色 */
+        .chess-light { background-color: #f0d9b5; color: #000; }
+        .chess-dark { background-color: #b58863; color: #000; }
+        
+        /* 跳棋顏色 */
+        .chk-light { background-color: #e2e8f0; }
+        .chk-dark { background-color: #475569; }
+
+        .selected { outline: 3px solid #facc15; outline-offset: -3px; z-index: 2; background-color: rgba(250, 204, 21, 0.4) !important;}
+        .valid-move::after {
+            content: ''; position: absolute; width: 30%; height: 30%;
+            background-color: rgba(0, 0, 0, 0.3); border-radius: 50%; pointer-events: none;
+        }
+
+        /* 跳棋棋子 */
+        .chk-piece {
+            width: 70%; height: 70%; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.3);
+            display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px;
+        }
+        .chk-red { background-color: #ef4444; border: 2px solid #b91c1c; }
+        .chk-black { background-color: #111827; border: 2px solid #000; color: white; }
+        .chk-king::after { content: '♔'; font-size: 18px; color: gold; text-shadow: 0 1px 2px black; }
+
+        .player-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; color: #cbd5e1; }
+        .turn-indicator { padding: 5px 10px; border-radius: 20px; background: rgba(0,0,0,0.3); }
+        .active-turn { background: #3b82f6; color: white; box-shadow: 0 0 10px #3b82f6; }
+
+    </style>
+</head>
+<body>
+
+<div id="mainMenu" class="container">
+    <h1 style="background: linear-gradient(to right, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🎮 棋盤遊戲大廳</h1>
+    <div style="margin-bottom: 20px; color: var(--text-muted);">
+        大廳閒置: <b id="lobbyCount" style="color:#60a5fa">0</b> | 遊戲中: <b id="inGameCount" style="color:#60a5fa">0</b>
+    </div>
+
+    <div id="allRoomsContainer">搜尋中...</div>
+    <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
+    
+    <button class="menu-btn btn-chess" onclick="showCreateRoom('chess')">創立 西洋棋 (Chess) ♟️</button>
+    <button class="menu-btn btn-checkers" onclick="showCreateRoom('checkers')">創立 西洋跳棋 (Checkers) 🔴⚫</button>
+</div>
+
+<div id="createRoomSection" class="container hidden">
+    <h3 id="createTitle">創立房間</h3>
+    <div class="input-group">
+        <label>房間名稱:</label>
+        <input type="text" id="roomName" placeholder="未命名房間">
+    </div>
+    <div class="input-group">
+        <label>設定密碼 (選填):</label>
+        <input type="password" id="roomPass" placeholder="可留空">
+    </div>
+    <button class="menu-btn btn-green" onclick="createRoom()">確認創立</button>
+    <button class="btn-sm" style="background:transparent; border:1px solid #64748b; margin-top:10px; color:#cbd5e1;" onclick="showSection('mainMenu')">返回大廳</button>
+</div>
+
+<div id="gameArea" class="container hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 id="roomDisplayInfo" style="margin:5px 0; color: #fff;"></h3>
+        <button class="btn-sm btn-red" onclick="leaveRoom()">離開房間</button>
+    </div>
+    <div id="gameMetaInfo" style="font-size: 0.85em; color: #94a3b8; margin-bottom: 15px;"></div>
+    
+    <div id="floating-chat-zone" class="floating-chat-container"></div>
+
+    <div class="player-info">
+        <div id="p2-info" class="turn-indicator">P2 (黑方) 等待加入...</div>
+        <div id="p1-info" class="turn-indicator active-turn">P1 (白方)</div>
+    </div>
+
+    <div id="board-container" class="board-wrapper">
+        <div id="game-board" class="grid-board"></div>
+    </div>
+
+    <div id="game-status" style="font-weight: bold; color: #facc15; margin: 10px 0; font-size: 1.1em; min-height: 24px;"></div>
+
+    <div id="chat-area">
+        <div style="margin-bottom: 8px; font-size: 0.9em; color: var(--text-muted);">
+            我是: <span id="myNameDisplay" class="editable-name" onclick="editName()">玩家</span> ✎
+        </div>
+        <div id="chat-msgs"></div>
+        <div class="chat-input-group">
+            <input type="text" id="chatInput" placeholder="輸入訊息..." onkeypress="if(event.key==='Enter') sendMessage()">
+            <button onclick="sendMessage()">傳送</button>
+        </div>
+    </div>
+
+    <div style="margin-top: 25px;">
+        <button id="btn-restart" style="background:transparent; color:#64748b; border:1px solid #334155; padding:8px 20px; border-radius:20px; cursor:pointer;" onclick="requestRestart()">重新開始遊戲</button>
+    </div>
+</div>
+
+<div id="customNameModal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <h3 id="modalTitle">👇輸入暱稱開始遊戲！👇</h3>
+        <input type="text" id="modalNameInput" placeholder="你的名字..." maxlength="10" onkeypress="if(event.key==='Enter') submitNameModal()">
+        <div class="modal-btns">
+            <button class="modal-btn btn-green" onclick="submitNameModal()">確定</button>
+            <button class="modal-btn" style="background:#64748b;" onclick="closeNameModal()">取消</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getDatabase, ref, set, onValue, push, update, remove, onDisconnect, serverTimestamp, get, runTransaction, onChildAdded } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC7PZLTTNf17cfp9gCHudWiWX8SYPSCdDI",
+        authDomain: "onlineeasyraygame.firebaseapp.com",
+        databaseURL: "https://onlineeasyraygame-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "onlineeasyraygame"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    
+    // 全域變數
+    let currentRoomId = null;
+    let selectedGameType = 'chess';
+    let roomDataCache = null;
+    let currentUserKey = null;
+    let chatInitTimestamp = Date.now();
+    let myName = localStorage.getItem('playerName') || `匿名玩家${Math.floor(Math.random()*99+1)}`;
+    
+    // 遊戲狀態控制
+    let chessInstance = new Chess();
+    let selectedSquare = null; // 紀錄當前選中的格子 (e.g. 'e2' 或 {r, c})
+    let validMovesCache = []; // 快取當前選中棋子的合法步數
+
+    // --- 人數統計 ---
+    const onlineRef = push(ref(db, 'chsgame_global/online'));
+    onDisconnect(onlineRef).remove();
+    set(onlineRef, true);
+
+    let totalOnlineCount = 0;
+    let totalInGameCount = 0;
+    onValue(ref(db, 'chsgame_global/online'), (snapshot) => { totalOnlineCount = snapshot.val() ? Object.keys(snapshot.val()).length : 0; updateStatsUI(); });
+
+    // --- 大廳房間列表 ---
+    onValue(ref(db, 'chsgame_room'), (snapshot) => {
+        const container = document.getElementById('allRoomsContainer');
+        container.innerHTML = "";
+        const rooms = snapshot.val();
+        totalInGameCount = 0;
+
+        if (!rooms) { 
+            container.innerHTML = "<p style='color:#94a3b8; margin-top:20px;'>目前沒有房間，來開一個吧！</p>"; 
+            updateStatsUI(); return; 
+        }
+        
+        Object.entries(rooms).reverse().forEach(([id, r]) => {
+            let userCount = r.users ? Object.values(r.users).filter(u => u.online).length : 0;
+            totalInGameCount += userCount;
+
+            const typeName = r.type === 'chess' ? '♟️西洋棋' : '🔴⚫西洋跳棋';
+            const lockIcon = r.password ? '🔒' : '';
+            const statusBadge = userCount >= 2 ? '<span class="status-badge status-play">遊戲中</span>' : '<span class="status-badge status-wait">等待中</span>';
+
+            const div = document.createElement('div');
+            div.className = 'room-item';
+            div.innerHTML = `
+                <div class="room-info">
+                    <span class="room-name">${typeName} | ${r.name} ${lockIcon} ${statusBadge}</span>
+                    <div class="room-meta">人數: ${userCount}/2</div>
+                </div>
+                <div>
+                    <button class="btn-sm btn-green" onclick="attemptJoin('${id}', '${r.password||''}')">加入</button>
+                    <button class="btn-sm btn-red" onclick="deleteRoom('${id}')">刪除</button>
+                </div>`;
+            container.appendChild(div);
+        });
+        updateStatsUI();
+    });
+
+    function updateStatsUI() {
+        document.getElementById('inGameCount').innerText = totalInGameCount;
+        document.getElementById('lobbyCount').innerText = Math.max(0, totalOnlineCount - totalInGameCount);
+    }
+
+    // --- 介面切換與彈窗 ---
+    window.showSection = (id) => {
+        document.querySelectorAll('.container').forEach(c => c.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    };
+
+    window.showCreateRoom = (type) => {
+        selectedGameType = type;
+        document.getElementById('createTitle').innerText = type === 'chess' ? "創立 西洋棋 ♟️" : "創立 西洋跳棋 🔴⚫";
+        showSection('createRoomSection');
+    };
+
+    let pendingRoomId = null;
+    window.attemptJoin = (id, pwd) => {
+        if (pwd) {
+            const input = prompt("此房間有密碼，請輸入：");
+            if (input !== pwd) return alert("密碼錯誤！");
+        }
+        pendingRoomId = id;
+        document.getElementById('modalNameInput').value = myName;
+        document.getElementById('customNameModal').classList.remove('hidden');
+        document.getElementById('modalNameInput').focus();
+    };
+
+    window.closeNameModal = () => document.getElementById('customNameModal').classList.add('hidden');
+    window.submitNameModal = () => {
+        const input = document.getElementById('modalNameInput').value.trim();
+        if (!input) return;
+        myName = input;
+        localStorage.setItem('playerName', myName);
+        closeNameModal();
+        enterRoom(pendingRoomId);
+    };
+
+    // --- 創建與進入房間 ---
+    function getInitialCheckersBoard() {
+        // 8x8 矩陣，null 空，'r'紅，'b'黑。紅在下方，黑在上方。
+        let b = Array(8).fill(null).map(() => Array(8).fill(null));
+        for(let r=0; r<8; r++) {
+            for(let c=0; c<8; c++) {
+                if ((r+c)%2 !== 0) { // 只能走黑格
+                    if (r < 3) b[r][c] = { player: 'b', king: false };
+                    else if (r > 4) b[r][c] = { player: 'r', king: false };
+                }
+            }
+        }
+        return b;
+    }
+
+    window.createRoom = () => {
+        const name = document.getElementById('roomName').value || "好玩房間";
+        const pass = document.getElementById('roomPass').value;
+        const roomRef = push(ref(db, 'chsgame_room'));
+        
+        let roomData = { name, password: pass, type: selectedGameType, users: {}, chat: {} };
+        if (selectedGameType === 'chess') {
+            roomData.fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+        } else {
+            roomData.checkersBoard = getInitialCheckersBoard();
+            roomData.checkersTurn = 'r'; // 紅方先走
+        }
+
+        set(roomRef, roomData).then(() => attemptJoin(roomRef.key, ""));
+    };
+
+    window.enterRoom = (id) => {
+        currentRoomId = id;
+        showSection('gameArea');
+        document.getElementById('myNameDisplay').innerText = myName;
+        chatInitTimestamp = Date.now(); 
+
+        const userRef = push(ref(db, `chsgame_room/${id}/users`));
+        currentUserKey = userRef.key;
+        update(userRef, { name: myName, online: true });
+        onDisconnect(userRef).remove();
+
+        // 監聽房間狀態
+        onValue(ref(db, 'chsgame_room/' + id), (snapshot) => {
+            const data = snapshot.val();
+            if (!data) { alert("房間已關閉"); return leaveRoom(); }
+            roomDataCache = data;
+            
+            updatePlayerInfo(data);
+            if (data.type === 'chess') renderChess(data);
+            else renderCheckers(data);
+        });
+
+        // 監聽聊天
+        onValue(ref(db, `chsgame_room/${id}/chat`), (snapshot) => {
+            const chatDiv = document.getElementById('chat-msgs');
+            chatDiv.innerHTML = "";
+            const msgs = snapshot.val();
+            if(msgs) {
+                Object.values(msgs).forEach(m => chatDiv.innerHTML += `<div><b>${m.user}:</b> ${m.text}</div>`);
+                chatDiv.scrollTop = chatDiv.scrollHeight;
+            }
+        });
+        onChildAdded(ref(db, `chsgame_room/${id}/chat`), (data) => {
+            const msg = data.val();
+            if (msg.time > chatInitTimestamp) spawnFloatingMsg(msg.text);
+        });
+    };
+
+    function spawnFloatingMsg(text) {
+        const zone = document.getElementById('floating-chat-zone');
+        const el = document.createElement('div');
+        el.className = 'float-msg';
+        el.innerText = text;
+        el.style.left = (30 + Math.random() * 40) + '%'; 
+        zone.appendChild(el);
+        setTimeout(() => el.remove(), 4000);
+    }
+
+    // --- 判斷單機/連線權限 ---
+    function getGameContext(data) {
+        const users = Object.keys(data.users || {}).filter(k => data.users[k].online);
+        const p1 = users[0];
+        const p2 = users[1];
+        const isLocal = users.length <= 1; // 只有1人時，可控雙方
+        
+        let myColorInChess = null; // 'w' or 'b'
+        let myColorInCheckers = null; // 'r' or 'b'
+        
+        if (currentUserKey === p1) { myColorInChess = 'w'; myColorInCheckers = 'r'; }
+        else if (currentUserKey === p2) { myColorInChess = 'b'; myColorInCheckers = 'b'; }
+
+        return { isLocal, myColorInChess, myColorInCheckers, p1Name: data.users[p1]?.name, p2Name: p2 ? data.users[p2]?.name : null };
+    }
+
+    function updatePlayerInfo(data) {
+        document.getElementById('gameMetaInfo').innerText = data.type === 'chess' ? '♟️西洋棋' : '🔴⚫西洋跳棋';
+        const ctx = getGameContext(data);
+        const p1El = document.getElementById('p1-info');
+        const p2El = document.getElementById('p2-info');
+        
+        p1El.innerText = `${ctx.p1Name || 'P1'} (${data.type==='chess'?'白':'紅'})`;
+        p2El.innerText = ctx.p2Name ? `${ctx.p2Name} (${data.type==='chess'?'黑':'黑'})` : "等待加入...";
+
+        const currentTurn = data.type === 'chess' ? chessInstance.turn() : data.checkersTurn;
+        const isP1Turn = (data.type === 'chess' && currentTurn === 'w') || (data.type === 'checkers' && currentTurn === 'r');
+        
+        if (isP1Turn) { p1El.classList.add('active-turn'); p2El.classList.remove('active-turn'); }
+        else { p2El.classList.add('active-turn'); p1El.classList.remove('active-turn'); }
+    }
+
+    // ==========================================
+    // 西洋棋邏輯 (使用 Chess.js)
+    // ==========================================
+    const pieceUnicode = {
+        'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚',
+        'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔'
+    };
+
+    function renderChess(data) {
+        if (data.fen !== chessInstance.fen()) chessInstance.load(data.fen);
+        
+        const boardDiv = document.getElementById('game-board');
+        boardDiv.innerHTML = "";
+        const board = chessInstance.board();
+        const ctx = getGameContext(data);
+        const currentTurn = chessInstance.turn();
+        
+        // 判斷是否為黑方視角 (如果是黑方，則棋盤翻轉180度)
+        const isBlackPerspective = (ctx.myColorInChess === 'b');
+        
+        for(let i=0; i<8; i++) {
+            for(let j=0; j<8; j++) {
+                // 若為黑方視角，將座標映射顛倒過來繪製
+                const r = isBlackPerspective ? 7 - i : i;
+                const c = isBlackPerspective ? 7 - j : j;
+
+                const squareName = String.fromCharCode(97 + c) + (8 - r);
+                const isDark = (r + c) % 2 !== 0;
+                const cell = document.createElement('div');
+                cell.className = `sq ${isDark ? 'chess-dark' : 'chess-light'}`;
+                cell.dataset.sq = squareName;
+
+                if (board[r][c]) {
+                    const p = board[r][c];
+                    const char = p.color === 'w' ? p.type.toUpperCase() : p.type;
+                    cell.innerHTML = pieceUnicode[char];
+                    cell.style.color = p.color === 'w' ? '#fff' : '#000';
+                    cell.style.textShadow = p.color === 'w' ? '0 1px 3px #000' : '0 1px 3px #fff';
+                }
+
+                // UI 狀態：選中、可移動提示
+                if (selectedSquare === squareName) cell.classList.add('selected');
+                if (validMovesCache.some(m => m.to === squareName)) cell.classList.add('valid-move');
+
+                cell.onclick = () => handleChessClick(squareName, board[r][c], ctx, currentTurn);
+                boardDiv.appendChild(cell);
+            }
+        }
+
+        const statusEl = document.getElementById('game-status');
+        if (chessInstance.in_checkmate()) statusEl.innerText = "將死！遊戲結束。";
+        else if (chessInstance.in_draw()) statusEl.innerText = "平局！";
+        else if (chessInstance.in_check()) statusEl.innerText = "將軍！";
+        else statusEl.innerText = `輪到: ${currentTurn==='w'?'白方':'黑方'}`;
+    }
+
+    function handleChessClick(sqName, pieceObj, ctx, currentTurn) {
+        if (chessInstance.game_over()) return;
+
+        // 判斷權限
+        const canMove = ctx.isLocal || (ctx.myColorInChess === currentTurn);
+        if (!canMove) return;
+
+        // 若點擊的是自己的棋子，設定為選中狀態
+        if (pieceObj && pieceObj.color === currentTurn) {
+            selectedSquare = sqName;
+            validMovesCache = chessInstance.moves({ square: sqName, verbose: true });
+            return renderChess(roomDataCache);
+        }
+
+        // 若已經選中棋子，且點擊的是合法目標，則移動
+        if (selectedSquare) {
+            const move = validMovesCache.find(m => m.to === sqName);
+            if (move) {
+                chessInstance.move({ from: selectedSquare, to: sqName, promotion: 'q' });
+                selectedSquare = null;
+                validMovesCache = [];
+                update(ref(db, `chsgame_room/${currentRoomId}`), { fen: chessInstance.fen() });
+            } else {
+                // 點到無效區域取消選取
+                selectedSquare = null;
+                validMovesCache = [];
+                renderChess(roomDataCache);
+            }
+        }
+    }
+
+    // ==========================================
+    // 西洋跳棋邏輯 (Checkers)
+    // ==========================================
+    function renderCheckers(data) {
+        const boardDiv = document.getElementById('game-board');
+        boardDiv.innerHTML = "";
+        const board = data.checkersBoard;
+        const ctx = getGameContext(data);
+        const currentTurn = data.checkersTurn;
+
+        for(let r=0; r<8; r++) {
+            for(let c=0; c<8; c++) {
+                const isDark = (r + c) % 2 !== 0;
+                const cell = document.createElement('div');
+                cell.className = `sq ${isDark ? 'chk-dark' : 'chk-light'}`;
+                
+                const piece = board[r][c];
+                if (piece) {
+                    const pDiv = document.createElement('div');
+                    pDiv.className = `chk-piece ${piece.player === 'r' ? 'chk-red' : 'chk-black'} ${piece.king ? 'chk-king' : ''}`;
+                    cell.appendChild(pDiv);
+                }
+
+                if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add('selected');
+                if (validMovesCache.some(m => m.r === r && m.c === c)) cell.classList.add('valid-move');
+
+                if (isDark) cell.onclick = () => handleCheckersClick(r, c, piece, board, ctx, currentTurn);
+                boardDiv.appendChild(cell);
+            }
+        }
+
+        const statusEl = document.getElementById('game-status');
+        let rCount=0, bCount=0;
+        board.forEach(row => row.forEach(p => { if(p){ p.player==='r'?rCount++:bCount++; } }));
+        if (rCount === 0) statusEl.innerText = "黑方獲勝！";
+        else if (bCount === 0) statusEl.innerText = "紅方獲勝！";
+        else statusEl.innerText = `輪到: ${currentTurn==='r'?'紅方':'黑方'}`;
+    }
+
+    function getCheckersValidMoves(r, c, piece, board) {
+        const moves = [];
+        const directions = piece.king ? [[-1,-1], [-1,1], [1,-1], [1,1]] : (piece.player === 'r' ? [[-1,-1], [-1,1]] : [[1,-1], [1,1]]);
+        
+        directions.forEach(([dr, dc]) => {
+            // 普通移動
+            const nr = r + dr, nc = c + dc;
+            if (nr>=0 && nr<8 && nc>=0 && nc<8 && !board[nr][nc]) {
+                moves.push({r:nr, c:nc, isJump:false});
+            }
+            // 吃子跳躍
+            const jr = r + dr*2, jc = c + dc*2;
+            if (jr>=0 && jr<8 && jc>=0 && jc<8 && !board[jr][jc]) {
+                const mid = board[nr][nc];
+                if (mid && mid.player !== piece.player) {
+                    moves.push({r:jr, c:jc, isJump:true, midR:nr, midC:nc});
+                }
+            }
+        });
+        return moves;
+    }
+
+    function handleCheckersClick(r, c, pieceObj, board, ctx, currentTurn) {
+        const statusEl = document.getElementById('game-status').innerText;
+        if (statusEl.includes("獲勝")) return;
+
+        const canMove = ctx.isLocal || (ctx.myColorInCheckers === currentTurn);
+        if (!canMove) return;
+
+        // 選中自己的棋子
+        if (pieceObj && pieceObj.player === currentTurn) {
+            selectedSquare = {r, c};
+            validMovesCache = getCheckersValidMoves(r, c, pieceObj, board);
+            return renderCheckers(roomDataCache);
+        }
+
+        // 移動
+        if (selectedSquare) {
+            const move = validMovesCache.find(m => m.r === r && m.c === c);
+            if (move) {
+                const movingPiece = board[selectedSquare.r][selectedSquare.c];
+                board[r][c] = movingPiece;
+                board[selectedSquare.r][selectedSquare.c] = null;
+                
+                if (move.isJump) board[move.midR][move.midC] = null; // 移除被吃的子
+
+                // 升變為王
+                if (movingPiece.player === 'r' && r === 0) movingPiece.king = true;
+                if (movingPiece.player === 'b' && r === 7) movingPiece.king = true;
+
+                // 換手 (這裡為簡化，跳過連跳邏輯，每次移動皆換手)
+                const nextTurn = currentTurn === 'r' ? 'b' : 'r';
+                selectedSquare = null; validMovesCache = [];
+                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: board, checkersTurn: nextTurn });
+            } else {
+                selectedSquare = null; validMovesCache = [];
+                renderCheckers(roomDataCache);
+            }
+        }
+    }
+
+    // ==========================================
+    // 雜項與事件
+    // ==========================================
+    window.requestRestart = () => {
+        if (!roomDataCache) return;
+        if (confirm("確定要重新開始嗎？")) {
+            if (roomDataCache.type === 'chess') {
+                update(ref(db, `chsgame_room/${currentRoomId}`), { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' });
+            } else {
+                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: getInitialCheckersBoard(), checkersTurn: 'r' });
+            }
+            selectedSquare = null; validMovesCache = [];
+        }
+    };
+
+    window.sendMessage = () => {
+        const input = document.getElementById('chatInput');
+        if (!input.value.trim()) return;
+        push(ref(db, `chsgame_room/${currentRoomId}/chat`), { user: myName, text: input.value, time: serverTimestamp() });
+        input.value = "";
+    };
+
+    window.editName = () => {
+        const newName = prompt("請輸入您的新暱稱:", myName);
+        if (newName && newName.trim() !== "") {
+            myName = newName.trim();
+            localStorage.setItem('playerName', myName);
+            document.getElementById('myNameDisplay').innerText = myName;
+            if (currentRoomId && currentUserKey) update(ref(db, `chsgame_room/${currentRoomId}/users/${currentUserKey}`), { name: myName });
+        }
+    };
+
+    window.leaveRoom = () => {
+        if (currentRoomId && currentUserKey) {
+            update(ref(db, `chsgame_room/${currentRoomId}/users/${currentUserKey}`), { online: false }).then(() => location.reload());
+        } else location.reload();
+    };
+
+    window.deleteRoom = (id) => { if(confirm("確定刪除？")) remove(ref(db, 'chsgame_room/' + id)); };
+
+</script>
+</body>
+</html>
