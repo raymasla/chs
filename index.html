@@ -206,7 +206,7 @@
         .chk-black { background-color: #111827; border: 2px solid #000; color: white; }
         
         .chk-king::after { 
-            content: '♤'; 
+            content: '✡'; 
             font-size: 24px; 
   	    color: #6C6C6C;
         }
@@ -809,7 +809,7 @@
             showVictory(ctx.isLocal, 'checkers', 'r', ctx);
         } else {
             let msg = `輪到: ${currentTurn==='r'?'紅方':'黑方'}`;
-            if (mandatoryPiece || allJumpers.length > 0) msg += " (必須吃子!)";
+            if (mandatoryPiece || allJumpers.length > 0) msg += " ";
             statusEl.innerText = msg;
             gameOverTriggered = false; // 遊戲還在進行中，確保標記重置
         }
