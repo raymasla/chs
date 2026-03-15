@@ -79,7 +79,7 @@
             position: relative; overflow: hidden;
         }
         .btn-chess { background: linear-gradient(135deg, #475569, #1e293b); }
-        .btn-checkers { background: linear-gradient(135deg, #ef4444, #7f1d1d); }
+        .btn-checkers { background: linear-gradient(135deg, #ef4444, #1e3a8a); }
         .menu-btn:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 8px 25px rgba(255,255,255,0.2); }
 
         .btn-sm { border: none; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 0.85em; margin-left: 6px; color: white; transition: 0.2s; font-weight: 600; }
@@ -101,12 +101,12 @@
         .status-wait { background: rgba(16, 185, 129, 0.2); color: #34d399; }
         .status-play { background: rgba(239, 68, 68, 0.2); color: #f87171; }
 
-        input {
+        input, select {
             padding: 10px 15px; text-align: center; border: 1px solid #475569;
             border-radius: 8px; background: #1e293b; color: white; outline: none; transition: 0.3s;
-            width: calc(100% - 30px); margin-top: 5px;
+            width: calc(100% - 30px); margin-top: 5px; font-family: inherit;
         }
-        input:focus { border-color: #8b5cf6; }
+        input:focus, select:focus { border-color: #8b5cf6; }
         .input-group { margin: 15px 0; text-align: left; color: var(--text-main); }
 
         /* --- 聊天室 --- */
@@ -197,18 +197,42 @@
             background-color: rgba(0, 0, 0, 0.3); border-radius: 50%; pointer-events: none;
         }
 
+        /* 玩家移動後的軌跡高亮 (淡綠色) */
+        .last-move-highlight {
+            background-color: rgba(134, 239, 172, 0.6) !important;
+        }
+
+        /* 棋子移動的滑動動畫 */
+        @keyframes slidePiece {
+            0% { transform: translate(calc(var(--dx) * 100%), calc(var(--dy) * 100%)); z-index: 100; }
+            100% { transform: translate(0, 0); z-index: 100; }
+        }
+        .moving-piece {
+            animation: slidePiece 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+            position: relative;
+            z-index: 100;
+        }
+
+        /* 西洋棋內部容器，用於套用動畫 */
+        .chess-piece-inner {
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            pointer-events: none; /* 避免擋住格子的點擊事件 */
+        }
+
         /* 跳棋棋子 */
         .chk-piece {
             width: 70%; height: 70%; border-radius: 50%; box-shadow: 0 4px 6px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.3);
-            display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px;
+            display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 14px; pointer-events: none;
         }
         .chk-red { background-color: #ef4444; border: 2px solid #b91c1c; }
-        .chk-black { background-color: #111827; border: 2px solid #000; color: white; }
+        /* 更改為藍棋 */
+        .chk-blue { background-color: #3b82f6; border: 2px solid #1e3a8a; color: white; }
         
         .chk-king::after { 
             content: '✡'; 
             font-size: 24px; 
-  	    color: #6C6C6C;
+            color: #fff;
         }
 
         /* 必須強制吃子的動畫提示 */
@@ -223,9 +247,30 @@
             border-color: #facc15 !important;
         }
 
-        .player-info { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; color: #cbd5e1; }
-        .turn-indicator { padding: 5px 10px; border-radius: 20px; background: rgba(0,0,0,0.3); }
+        .player-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; color: #cbd5e1; }
+        .turn-indicator { padding: 5px 10px; border-radius: 20px; background: rgba(0,0,0,0.3); display: flex; align-items: center; gap: 8px;}
         .active-turn { background: #3b82f6; color: white; }
+
+        /* 計時器專用樣式 */
+        .player-timer {
+            font-family: 'Courier New', Courier, monospace;
+            background: rgba(0,0,0,0.4);
+            padding: 2px 8px;
+            border-radius: 6px;
+            color: white;
+            font-size: 1em;
+            min-width: 50px;
+            text-align: center;
+        }
+        .timer-warning {
+            color: #ef4444 !important;
+            animation: slowBlink 1.5s ease-in-out infinite;
+        }
+        @keyframes slowBlink {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
 
     </style>
 </head>
@@ -241,7 +286,7 @@
     <hr style="border-color: rgba(255,255,255,0.1); margin: 20px 0;">
     
     <button class="menu-btn btn-chess" onclick="showCreateRoom('chess')">創立 西洋棋 (Chess) ♟️</button>
-    <button class="menu-btn btn-checkers" onclick="showCreateRoom('checkers')">創立 西洋跳棋 (Checkers) 🔴⚫</button>
+    <button class="menu-btn btn-checkers" onclick="showCreateRoom('checkers')">創立 西洋跳棋 (Checkers) 🔴🔵</button>
 </div>
 
 <div id="createRoomSection" class="container hidden">
@@ -254,6 +299,21 @@
         <label>設定密碼(輸入):</label>
         <input type="password" id="roomPass" placeholder="可留空">
     </div>
+
+    <div id="timeControlGroup" class="input-group hidden">
+        <label style="color:#facc15;">⏱️ 時間模式 (僅限西洋棋):</label>
+        <select id="tcMode" onchange="onTimeModeChange()" style="width: 100%; text-align: left; padding-left: 15px;">
+            <option value="none">無計時 (不限時)</option>
+            <option value="standard">標準制 (時間走完即判負)</option>
+            <option value="increment">加秒制 (每步 +5 秒)</option>
+            <option value="delay">延遲制 (前 5 秒不扣時)</option>
+        </select>
+        <div id="tcMinutesWrapper" class="hidden" style="margin-top: 10px;">
+            <label id="tcLabel">每人初始分鐘數:</label>
+            <input type="number" id="tcMinutes" value="20" min="1" max="180">
+        </div>
+    </div>
+
     <button class="menu-btn btn-green" onclick="createRoom()">確認創立</button>
     <button class="btn-sm" style="background:transparent; border:1px solid #64748b; margin-top:10px; color:#cbd5e1;" onclick="showSection('mainMenu')">返回大廳</button>
 </div>
@@ -268,8 +328,14 @@
     <div id="floating-chat-zone" class="floating-chat-container"></div>
 
     <div class="player-info">
-        <div id="p2-info" class="turn-indicator">P2 (黑方) 等待加入...</div>
-        <div id="p1-info" class="turn-indicator active-turn">P1 (白方)</div>
+        <div id="p2-info" class="turn-indicator">
+            <span id="p2-name-display">P2 (黑方) 等待加入...</span>
+            <span id="p2-timer" class="player-timer hidden"></span>
+        </div>
+        <div id="p1-info" class="turn-indicator active-turn">
+            <span id="p1-name-display">P1 (白方)</span>
+            <span id="p1-timer" class="player-timer hidden"></span>
+        </div>
     </div>
 
     <div id="board-container" class="board-wrapper">
@@ -291,6 +357,7 @@
 
     <div style="margin-top: 25px;">
         <button id="btn-restart" style="background:transparent; color:#64748b; border:1px solid #334155; padding:8px 20px; border-radius:20px; cursor:pointer;" onclick="requestRestart()">重新開始遊戲</button>
+        <button id="btn-flip-mode" class="hidden" style="background:transparent; color:#64748b; border:1px solid #334155; padding:8px 20px; border-radius:20px; cursor:pointer; margin-left:10px;" onclick="toggleFlipMode()">啟用翻轉模式: 關閉</button>
     </div>
 </div>
 
@@ -317,7 +384,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
     import { getDatabase, ref, set, onValue, push, update, remove, onDisconnect, serverTimestamp, get, runTransaction, onChildAdded } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
 
-    // 更新為完整配置
     const firebaseConfig = {
         apiKey: "AIzaSyC7PZLTTNf17cfp9gCHudWiWX8SYPSCdDI",
         authDomain: "onlineeasyraygame.firebaseapp.com",
@@ -337,12 +403,38 @@
     let currentUserKey = null;
     let chatInitTimestamp = Date.now();
     let myName = localStorage.getItem('playerName') || `匿名玩家${Math.floor(Math.random()*99+1)}`;
-    let gameOverTriggered = false; // 控制勝利動畫是否已觸發
+    let gameOverTriggered = false; 
+    let timerLoop = null; 
     
+    let lastAnimatedMoveIdChess = null;
+    let lastAnimatedMoveIdCheckers = null;
+
+    // 新增: 翻轉模式狀態控制
+    let flipModeEnabled = false;
+
     // 遊戲狀態控制
     let chessInstance = new Chess();
     let selectedSquare = null; 
     let validMovesCache = []; 
+
+    // --- 翻轉模式切換功能 ---
+    window.toggleFlipMode = () => {
+        flipModeEnabled = !flipModeEnabled;
+        const btn = document.getElementById('btn-flip-mode');
+        if (flipModeEnabled) {
+            btn.innerText = "啟用翻轉模式: 開啟";
+            btn.style.color = "#facc15";
+            btn.style.borderColor = "#facc15";
+        } else {
+            btn.innerText = "啟用翻轉模式: 關閉";
+            btn.style.color = "#64748b";
+            btn.style.borderColor = "#334155";
+        }
+        // 切換後重新渲染棋盤
+        if (roomDataCache && roomDataCache.type === 'chess') {
+            renderChess(roomDataCache);
+        }
+    };
 
     // --- 人數統計 ---
     const onlineRef = push(ref(db, 'chsgame_global/online'));
@@ -369,7 +461,7 @@
             let userCount = r.users ? Object.values(r.users).filter(u => u.online).length : 0;
             totalInGameCount += userCount;
 
-            const typeName = r.type === 'chess' ? '♟️西洋棋' : '🔴⚫西洋跳棋';
+            const typeName = r.type === 'chess' ? '♟️西洋棋' : '🔴🔵西洋跳棋';
             const lockIcon = r.password ? '🔒' : '';
             const statusBadge = userCount >= 2 ? '<span class="status-badge status-play">遊戲中</span>' : '<span class="status-badge status-wait">等待中</span>';
 
@@ -400,9 +492,34 @@
         document.getElementById(id).classList.remove('hidden');
     };
 
+    window.onTimeModeChange = () => {
+        const mode = document.getElementById('tcMode').value;
+        const wrapper = document.getElementById('tcMinutesWrapper');
+        const input = document.getElementById('tcMinutes');
+        
+        if (mode === 'none') {
+            wrapper.classList.add('hidden');
+        } else {
+            wrapper.classList.remove('hidden');
+            if (mode === 'standard') input.value = 20;
+            if (mode === 'increment') input.value = 5;
+            if (mode === 'delay') input.value = 10;
+        }
+    };
+
     window.showCreateRoom = (type) => {
         selectedGameType = type;
-        document.getElementById('createTitle').innerText = type === 'chess' ? "創立 西洋棋 ♟️" : "創立 西洋跳棋 🔴⚫";
+        document.getElementById('createTitle').innerText = type === 'chess' ? "創立 西洋棋 ♟️" : "創立 西洋跳棋 🔴🔵";
+        
+        const tcGroup = document.getElementById('timeControlGroup');
+        if (type === 'chess') {
+            tcGroup.classList.remove('hidden');
+            document.getElementById('tcMode').value = 'none';
+            onTimeModeChange(); 
+        } else {
+            tcGroup.classList.add('hidden');
+        }
+        
         showSection('createRoomSection');
     };
 
@@ -434,15 +551,14 @@
         for(let r=0; r<8; r++) {
             for(let c=0; c<8; c++) {
                 if ((r+c)%2 !== 0) { 
-                    if (r < 3) b[r][c] = { player: 'b', king: false }; // 黑方在上方
-                    else if (r > 4) b[r][c] = { player: 'r', king: false }; // 紅方在下方
+                    if (r < 3) b[r][c] = { player: 'b', king: false };
+                    else if (r > 4) b[r][c] = { player: 'r', king: false };
                 }
             }
         }
         return b;
     }
 
-    // 確保從 Firebase 取回的陣列保持 8x8 結構（避免 Firebase 自動剔除空元素）
     function ensureCheckersBoard(fbBoard) {
         let b = Array(8).fill(null).map(() => Array(8).fill(null));
         if (fbBoard) {
@@ -465,10 +581,24 @@
         let roomData = { name, password: pass, type: selectedGameType, users: {}, chat: {} };
         if (selectedGameType === 'chess') {
             roomData.fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+            
+            const tcMode = document.getElementById('tcMode').value;
+            if (tcMode !== 'none') {
+                const mins = parseInt(document.getElementById('tcMinutes').value) || 20;
+                const ms = mins * 60 * 1000;
+                roomData.timeControl = {
+                    mode: tcMode,
+                    initialTime: ms,
+                    p1Time: ms,
+                    p2Time: ms,
+                    started: false,
+                    lastMoveTime: null
+                };
+            }
         } else {
             roomData.checkersBoard = getInitialCheckersBoard();
             roomData.checkersTurn = 'r'; 
-            roomData.checkersActivePiece = null; // 初始化無強制連跳的棋子
+            roomData.checkersActivePiece = null;
         }
 
         set(roomRef, roomData).then(() => attemptJoin(roomRef.key, ""));
@@ -476,7 +606,7 @@
 
     window.enterRoom = (id) => {
         currentRoomId = id;
-        gameOverTriggered = false; // 進入房間重置動畫觸發器
+        gameOverTriggered = false; 
         showSection('gameArea');
         document.getElementById('myNameDisplay').innerText = myName;
         chatInitTimestamp = Date.now(); 
@@ -486,7 +616,8 @@
         update(userRef, { name: myName, online: true });
         onDisconnect(userRef).remove();
 
-        // 監聽房間狀態
+        startTimerLoop();
+
         onValue(ref(db, 'chsgame_room/' + id), (snapshot) => {
             const data = snapshot.val();
             if (!data) { alert("房間已關閉"); return leaveRoom(); }
@@ -497,7 +628,6 @@
             else renderCheckers(data);
         });
 
-        // 監聽聊天
         onValue(ref(db, `chsgame_room/${id}/chat`), (snapshot) => {
             const chatDiv = document.getElementById('chat-msgs');
             chatDiv.innerHTML = "";
@@ -512,6 +642,87 @@
             if (msg.time > chatInitTimestamp) spawnFloatingMsg(msg.text);
         });
     };
+
+    // ==========================================
+    // 計時器邏輯
+    // ==========================================
+    function startTimerLoop() {
+        if (timerLoop) clearInterval(timerLoop);
+        
+        timerLoop = setInterval(() => {
+            if (!roomDataCache || roomDataCache.type !== 'chess' || !roomDataCache.timeControl) {
+                document.getElementById('p1-timer').classList.add('hidden');
+                document.getElementById('p2-timer').classList.add('hidden');
+                return;
+            }
+
+            const tc = roomDataCache.timeControl;
+            let p1Current = tc.p1Time;
+            let p2Current = tc.p2Time;
+
+            if (tc.started && !chessInstance.game_over() && !gameOverTriggered) {
+                const elapsed = Date.now() - tc.lastMoveTime;
+                const isP1Turn = chessInstance.turn() === 'w';
+
+                let timeToSubtract = elapsed;
+                if (tc.mode === 'delay') {
+                    timeToSubtract = Math.max(0, elapsed - 5000);
+                }
+
+                if (isP1Turn) {
+                    p1Current -= timeToSubtract;
+                } else {
+                    p2Current -= timeToSubtract;
+                }
+            }
+
+            if (p1Current <= 0 && tc.started && !gameOverTriggered) {
+                p1Current = 0;
+                handleTimeout('w');
+            } else if (p2Current <= 0 && tc.started && !gameOverTriggered) {
+                p2Current = 0;
+                handleTimeout('b');
+            }
+
+            renderTimerUI('p1-timer', p1Current);
+            renderTimerUI('p2-timer', p2Current);
+
+        }, 50); 
+    }
+
+    function renderTimerUI(elementId, msLeft) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        el.classList.remove('hidden');
+        
+        if (msLeft <= 0) msLeft = 0;
+        const totalSeconds = msLeft / 1000;
+
+        if (totalSeconds <= 10) {
+            el.innerText = totalSeconds.toFixed(2);
+            el.className = 'player-timer timer-warning';
+        } else if (totalSeconds <= 30) {
+            const m = Math.floor(totalSeconds / 60);
+            const s = Math.floor(totalSeconds % 60);
+            el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            el.className = 'player-timer timer-warning';
+        } else {
+            const m = Math.floor(totalSeconds / 60);
+            const s = Math.floor(totalSeconds % 60);
+            el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            el.className = 'player-timer';
+        }
+    }
+
+    function handleTimeout(color) {
+        if (gameOverTriggered) return;
+        gameOverTriggered = true;
+        const ctx = getGameContext(roomDataCache);
+        const winnerColor = color === 'w' ? 'b' : 'w';
+        
+        document.getElementById('game-status').innerText = color === 'w' ? "🕒 白方超時！黑方獲勝。" : "🕒 黑方超時！白方獲勝。";
+        showVictory(ctx.isLocal, 'chess', winnerColor, ctx);
+    }
 
     function spawnFloatingMsg(text) {
         const zone = document.getElementById('floating-chat-zone');
@@ -529,7 +740,7 @@
     };
 
     function showVictory(isLocal, type, resultColor, ctx) {
-        if (gameOverTriggered) return;
+        if (gameOverTriggered && !document.getElementById('victoryModal').classList.contains('hidden')) return;
         gameOverTriggered = true;
 
         const vModal = document.getElementById('victoryModal');
@@ -548,22 +759,19 @@
                 colorStr = resultColor === 'w' ? '白方' : '黑方';
                 winnerName = resultColor === 'w' ? ctx.p1Name : ctx.p2Name;
             } else {
-                colorStr = resultColor === 'r' ? '紅方' : '黑方';
+                colorStr = resultColor === 'r' ? '紅方' : '藍方';
                 winnerName = resultColor === 'r' ? ctx.p1Name : ctx.p2Name;
             }
 
-            // 若為單機或尚未有第二名玩家加入，僅顯示顏色
             if (isLocal || !ctx.p2Name) {
                 vSub.innerText = `${colorStr} 獲勝！`;
             } else {
-                // 雙人遊戲則帶入名字
                 vSub.innerText = `恭喜 ${winnerName || '玩家'} (${colorStr}) 獲勝！`;
             }
         }
         vModal.classList.remove('hidden');
     }
 
-    // --- 判斷單機/連線權限 ---
     function getGameContext(data) {
         const users = Object.keys(data.users || {}).filter(k => data.users[k].online);
         const p1 = users[0];
@@ -580,19 +788,33 @@
     }
 
     function updatePlayerInfo(data) {
-        document.getElementById('gameMetaInfo').innerText = data.type === 'chess' ? '♟️西洋棋' : '🔴⚫西洋跳棋';
+        document.getElementById('gameMetaInfo').innerText = data.type === 'chess' ? '♟️西洋棋' : '🔴🔵西洋跳棋';
         const ctx = getGameContext(data);
         const p1El = document.getElementById('p1-info');
         const p2El = document.getElementById('p2-info');
+        const flipBtn = document.getElementById('btn-flip-mode');
         
-        p1El.innerText = `${ctx.p1Name || 'P1'} (${data.type==='chess'?'白':'紅'})`;
-        p2El.innerText = ctx.p2Name ? `${ctx.p2Name} (${data.type==='chess'?'黑':'黑'})` : "等待加入...";
+        document.getElementById('p1-name-display').innerText = `${ctx.p1Name || 'P1'} (${data.type==='chess'?'白':'紅'})`;
+        document.getElementById('p2-name-display').innerText = ctx.p2Name ? `${ctx.p2Name} (${data.type==='chess'?'黑':'藍'})` : "等待加入...";
 
         const currentTurn = data.type === 'chess' ? chessInstance.turn() : data.checkersTurn;
         const isP1Turn = (data.type === 'chess' && currentTurn === 'w') || (data.type === 'checkers' && currentTurn === 'r');
         
         if (isP1Turn) { p1El.classList.add('active-turn'); p2El.classList.remove('active-turn'); }
         else { p2El.classList.add('active-turn'); p1El.classList.remove('active-turn'); }
+
+        // 新增: 只有在單機的西洋棋模式才會顯示翻轉按鈕
+        if (data.type === 'chess' && ctx.isLocal) {
+            flipBtn.classList.remove('hidden');
+        } else {
+            flipBtn.classList.add('hidden');
+            if (flipModeEnabled) {
+                flipModeEnabled = false;
+                flipBtn.innerText = "啟用翻轉模式: 關閉";
+                flipBtn.style.color = "#64748b";
+                flipBtn.style.borderColor = "#334155";
+            }
+        }
     }
 
     // ==========================================
@@ -614,6 +836,9 @@
         
         const isBlackPerspective = (ctx.myColorInChess === 'b');
         
+        const moveInfo = data.lastMove;
+        const isNewMove = moveInfo && moveInfo.moveId !== lastAnimatedMoveIdChess;
+        
         for(let i=0; i<8; i++) {
             for(let j=0; j<8; j++) {
                 const r = isBlackPerspective ? 7 - i : i;
@@ -625,12 +850,46 @@
                 cell.className = `sq ${isDark ? 'chess-dark' : 'chess-light'}`;
                 cell.dataset.sq = squareName;
 
+                // 上一手軌跡高亮
+                if (moveInfo && (squareName === moveInfo.from || squareName === moveInfo.to)) {
+                    cell.classList.add('last-move-highlight');
+                }
+
                 if (board[r][c]) {
                     const p = board[r][c];
                     const char = p.color === 'w' ? p.type.toUpperCase() : p.type;
-                    cell.innerHTML = pieceUnicode[char];
-                    cell.style.color = p.color === 'w' ? '#fff' : '#000';
-                    cell.style.textShadow = p.color === 'w' ? '0 1px 3px #000' : '0 1px 3px #fff';
+                    
+                    const pieceDiv = document.createElement('div');
+                    pieceDiv.className = 'chess-piece-inner';
+
+                    // 新增: 判斷是否需要翻轉棋子 (開啟翻轉模式 + 是單機模式 + 現在輪到黑方)
+                    const shouldFlip = flipModeEnabled && ctx.isLocal && currentTurn === 'b';
+                    const rotationStyle = shouldFlip 
+                        ? 'transform: rotate(180deg); display: inline-block;' 
+                        : 'transform: rotate(0deg); display: inline-block;';
+
+                    // 將棋子字元包裝在 span 內進行旋轉，避免與外部滑動動畫 (translate) 衝突
+                    pieceDiv.innerHTML = `<span style="${rotationStyle}">${pieceUnicode[char]}</span>`;
+                    pieceDiv.style.color = p.color === 'w' ? '#fff' : '#000';
+                    pieceDiv.style.textShadow = p.color === 'w' ? '0 1px 3px #000' : '0 1px 3px #fff';
+
+                    // 如果這是最新移動的棋子，套用滑動動畫
+                    if (moveInfo && isNewMove && squareName === moveInfo.to) {
+                        const fromFile = moveInfo.from.charCodeAt(0) - 97;
+                        const fromRank = 8 - parseInt(moveInfo.from[1]);
+                        const toFile = moveInfo.to.charCodeAt(0) - 97;
+                        const toRank = 8 - parseInt(moveInfo.to[1]);
+                        
+                        let diffC = fromFile - toFile;
+                        let diffR = fromRank - toRank;
+                        if (isBlackPerspective) { diffC = -diffC; diffR = -diffR; }
+                        
+                        pieceDiv.style.setProperty('--dx', diffC);
+                        pieceDiv.style.setProperty('--dy', diffR);
+                        pieceDiv.classList.add('moving-piece');
+                    }
+
+                    cell.appendChild(pieceDiv);
                 }
 
                 if (selectedSquare === squareName) cell.classList.add('selected');
@@ -641,25 +900,27 @@
             }
         }
 
+        if (moveInfo) lastAnimatedMoveIdChess = moveInfo.moveId;
+
         const statusEl = document.getElementById('game-status');
         if (chessInstance.in_checkmate()) {
             statusEl.innerText = "將死！遊戲結束。";
-            let winnerColor = chessInstance.turn() === 'w' ? 'b' : 'w'; // 如果輪到白方且被將死，則黑方贏
+            let winnerColor = chessInstance.turn() === 'w' ? 'b' : 'w'; 
             showVictory(ctx.isLocal, 'chess', winnerColor, ctx);
         } else if (chessInstance.in_draw()) {
             statusEl.innerText = "平局！";
             showVictory(ctx.isLocal, 'chess', 'draw', ctx);
         } else if (chessInstance.in_check()) {
             statusEl.innerText = "將軍！";
-            gameOverTriggered = false; // 遊戲還在進行中，確保標記重置
+            if(gameOverTriggered && !document.getElementById('victoryModal').classList.contains('hidden')) {} else { gameOverTriggered = false; }
         } else {
             statusEl.innerText = `輪到: ${currentTurn==='w'?'白方':'黑方'}`;
-            gameOverTriggered = false;
+            if(gameOverTriggered && !document.getElementById('victoryModal').classList.contains('hidden')) {} else { gameOverTriggered = false; }
         }
     }
 
     function handleChessClick(sqName, pieceObj, ctx, currentTurn) {
-        if (chessInstance.game_over()) return;
+        if (chessInstance.game_over() || gameOverTriggered) return;
 
         const canMove = ctx.isLocal || (ctx.myColorInChess === currentTurn);
         if (!canMove) return;
@@ -673,10 +934,45 @@
         if (selectedSquare) {
             const move = validMovesCache.find(m => m.to === sqName);
             if (move) {
-                chessInstance.move({ from: selectedSquare, to: sqName, promotion: 'q' });
+                const moveRes = chessInstance.move({ from: selectedSquare, to: sqName, promotion: 'q' });
                 selectedSquare = null;
                 validMovesCache = [];
-                update(ref(db, `chsgame_room/${currentRoomId}`), { fen: chessInstance.fen() });
+                
+                let updateData = { 
+                    fen: chessInstance.fen(),
+                    lastMove: { from: moveRes.from, to: moveRes.to, moveId: Date.now() }
+                };
+
+                if (roomDataCache.timeControl) {
+                    const tc = roomDataCache.timeControl;
+                    const now = Date.now();
+
+                    if (!tc.started) {
+                        updateData['timeControl/started'] = true;
+                        updateData['timeControl/lastMoveTime'] = now;
+                    } else {
+                        const elapsed = now - tc.lastMoveTime;
+                        let timeToSubtract = elapsed;
+                        
+                        if (tc.mode === 'delay') {
+                            timeToSubtract = Math.max(0, elapsed - 5000);
+                        }
+
+                        if (currentTurn === 'w') {
+                            let newTime = tc.p1Time - timeToSubtract;
+                            if (tc.mode === 'increment') newTime += 5000; 
+                            updateData['timeControl/p1Time'] = newTime;
+                        } else {
+                            let newTime = tc.p2Time - timeToSubtract;
+                            if (tc.mode === 'increment') newTime += 5000;
+                            updateData['timeControl/p2Time'] = newTime;
+                        }
+
+                        updateData['timeControl/lastMoveTime'] = now;
+                    }
+                }
+
+                update(ref(db, `chsgame_room/${currentRoomId}`), updateData);
             } else {
                 selectedSquare = null;
                 validMovesCache = [];
@@ -688,23 +984,18 @@
     // ==========================================
     // 西洋跳棋邏輯 (Checkers)
     // ==========================================
-
-    // 取得合法步數 (包含一般移動與跳躍)
     function getCheckersValidMoves(r, c, piece, board) {
         const moves = [];
         const directions = piece.king ? [[-1,-1], [-1,1], [1,-1], [1,1]] : (piece.player === 'r' ? [[-1,-1], [-1,1]] : [[1,-1], [1,1]]);
         
         directions.forEach(([dr, dc]) => {
-            // 普通移動
             const nr = r + dr, nc = c + dc;
             if (nr>=0 && nr<8 && nc>=0 && nc<8 && !board[nr][nc]) {
                 moves.push({r:nr, c:nc, isJump:false});
             }
-            // 吃子跳躍
             const jr = r + dr*2, jc = c + dc*2;
             if (jr>=0 && jr<8 && jc>=0 && jc<8 && !board[jr][jc]) {
                 const mid = board[nr][nc];
-                // 必須是敵方的棋子才能吃
                 if (mid && mid.player !== piece.player) {
                     moves.push({r:jr, c:jc, isJump:true, midR:nr, midC:nc});
                 }
@@ -713,7 +1004,6 @@
         return moves;
     }
 
-    // 取得玩家目前所有可以進行「跳躍(吃子)」的棋子座標
     function getAllPossibleJumps(board, player) {
         const jumpers = [];
         for (let r=0; r<8; r++) {
@@ -721,9 +1011,7 @@
                 const p = board[r][c];
                 if (p && p.player === player) {
                     const jumps = getCheckersValidMoves(r, c, p, board).filter(m => m.isJump);
-                    if (jumps.length > 0) {
-                        jumpers.push({r, c});
-                    }
+                    if (jumps.length > 0) jumpers.push({r, c});
                 }
             }
         }
@@ -734,17 +1022,17 @@
         const boardDiv = document.getElementById('game-board');
         boardDiv.innerHTML = "";
         
-        // 使用修復函式以防止 Firebase 自動過濾空值造成的錯誤
         const board = ensureCheckersBoard(data.checkersBoard); 
         const ctx = getGameContext(data);
         const currentTurn = data.checkersTurn;
         const isBlackPerspective = (ctx.myColorInCheckers === 'b');
 
-        // 檢查目前是否必須吃子
         const allJumpers = getAllPossibleJumps(board, currentTurn);
-        const mandatoryPiece = data.checkersActivePiece || null; // 處理連跳強制選定的棋子
+        const mandatoryPiece = data.checkersActivePiece || null; 
 
-        // ===== 新增: 自動鎖定並選取連續跳躍的棋子 =====
+        const moveInfo = data.lastCheckersMove;
+        const isNewMove = moveInfo && moveInfo.moveId !== lastAnimatedMoveIdCheckers;
+
         const canMove = ctx.isLocal || (ctx.myColorInCheckers === currentTurn);
         if (mandatoryPiece && canMove) {
             selectedSquare = { r: mandatoryPiece.r, c: mandatoryPiece.c };
@@ -753,11 +1041,9 @@
                 validMovesCache = getCheckersValidMoves(mandatoryPiece.r, mandatoryPiece.c, p, board).filter(m => m.isJump);
             }
         }
-        // ============================================
 
         for(let i=0; i<8; i++) {
             for(let j=0; j<8; j++) {
-                // 將畫面的 2D 座標轉換為陣列實際邏輯座標，達到 180 度翻轉效果
                 const r = isBlackPerspective ? 7 - i : i;
                 const c = isBlackPerspective ? 7 - j : j;
 
@@ -765,13 +1051,17 @@
                 const cell = document.createElement('div');
                 cell.className = `sq ${isDark ? 'chk-dark' : 'chk-light'}`;
                 
+                // 上一手軌跡高亮
+                if (moveInfo && ((r === moveInfo.fromR && c === moveInfo.fromC) || (r === moveInfo.toR && c === moveInfo.toC))) {
+                    cell.classList.add('last-move-highlight');
+                }
+
                 const piece = board[r][c];
                 if (piece) {
                     const pDiv = document.createElement('div');
-                    pDiv.className = `chk-piece ${piece.player === 'r' ? 'chk-red' : 'chk-black'}`;
+                    pDiv.className = `chk-piece ${piece.player === 'r' ? 'chk-red' : 'chk-blue'}`;
                     if (piece.king) pDiv.classList.add('chk-king'); 
 
-                    // 判斷這顆棋子是否為當下「必須」去操控吃對方的棋子
                     let isMustCapture = false;
                     if (piece.player === currentTurn) {
                         if (mandatoryPiece) {
@@ -781,9 +1071,17 @@
                         }
                     }
 
-                    // 如果是必須操控的棋子，加上閃爍與發光的提示動畫
-                    if (isMustCapture) {
-                        pDiv.classList.add('must-capture-piece');
+                    if (isMustCapture) pDiv.classList.add('must-capture-piece');
+
+                    // 如果這是最新移動的棋子，套用滑動動畫
+                    if (moveInfo && isNewMove && r === moveInfo.toR && c === moveInfo.toC) {
+                        let diffC = moveInfo.fromC - moveInfo.toC;
+                        let diffR = moveInfo.fromR - moveInfo.toR;
+                        if (isBlackPerspective) { diffC = -diffC; diffR = -diffR; }
+                        
+                        pDiv.style.setProperty('--dx', diffC);
+                        pDiv.style.setProperty('--dy', diffR);
+                        pDiv.classList.add('moving-piece');
                     }
 
                     cell.appendChild(pDiv);
@@ -792,26 +1090,27 @@
                 if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c) cell.classList.add('selected');
                 if (validMovesCache.some(m => m.r === r && m.c === c)) cell.classList.add('valid-move');
 
-                // 將實際邏輯座標 (r, c) 帶入點擊事件
                 if (isDark) cell.onclick = () => handleCheckersClick(r, c, piece, board, ctx, currentTurn);
                 boardDiv.appendChild(cell);
             }
         }
 
+        if (moveInfo) lastAnimatedMoveIdCheckers = moveInfo.moveId;
+
         const statusEl = document.getElementById('game-status');
         let rCount=0, bCount=0;
         board.forEach(row => row.forEach(p => { if(p){ p.player==='r'?rCount++:bCount++; } }));
         if (rCount === 0) {
-            statusEl.innerText = "黑方獲勝！";
+            statusEl.innerText = "藍方獲勝！";
             showVictory(ctx.isLocal, 'checkers', 'b', ctx);
         } else if (bCount === 0) {
             statusEl.innerText = "紅方獲勝！";
             showVictory(ctx.isLocal, 'checkers', 'r', ctx);
         } else {
-            let msg = `輪到: ${currentTurn==='r'?'紅方':'黑方'}`;
+            let msg = `輪到: ${currentTurn==='r'?'紅方':'藍方'}`;
             if (mandatoryPiece || allJumpers.length > 0) msg += " ";
             statusEl.innerText = msg;
-            gameOverTriggered = false; // 遊戲還在進行中，確保標記重置
+            gameOverTriggered = false; 
         }
     }
 
@@ -823,34 +1122,21 @@
         if (!canMove) return;
 
         const allJumpers = getAllPossibleJumps(board, currentTurn);
-        const mandatoryPiece = roomDataCache.checkersActivePiece; // 取出正在連跳中的棋子座標
+        const mandatoryPiece = roomDataCache.checkersActivePiece; 
 
-        // 點擊選中自己的棋子
         if (pieceObj && pieceObj.player === currentTurn) {
-            
-            // 機制檢查：如果目前有強制連跳的棋子，只能點擊那一顆
-            if (mandatoryPiece && (mandatoryPiece.r !== r || mandatoryPiece.c !== c)) {
-                return; // 忽略點擊其他棋子
-            }
-            
-            // 機制檢查：如果場上存在可以吃對方的棋子，則只能選擇那些能吃的棋子
-            if (!mandatoryPiece && allJumpers.length > 0 && !allJumpers.some(j => j.r === r && j.c === c)) {
-                return; // 忽略點擊沒有辦法吃子的棋子
-            }
+            if (mandatoryPiece && (mandatoryPiece.r !== r || mandatoryPiece.c !== c)) return; 
+            if (!mandatoryPiece && allJumpers.length > 0 && !allJumpers.some(j => j.r === r && j.c === c)) return; 
 
             selectedSquare = {r, c};
             let moves = getCheckersValidMoves(r, c, pieceObj, board);
             
-            // 如果這顆棋子有跳躍(吃子)的選項，把一般移動過濾掉，強制只能吃子
-            if (moves.some(m => m.isJump)) {
-                moves = moves.filter(m => m.isJump);
-            }
+            if (moves.some(m => m.isJump)) moves = moves.filter(m => m.isJump);
 
             validMovesCache = moves;
             return renderCheckers(roomDataCache);
         }
 
-        // 執行移動邏輯
         if (selectedSquare) {
             const move = validMovesCache.find(m => m.r === r && m.c === c);
             if (move) {
@@ -860,9 +1146,8 @@
                 newBoard[r][c] = movingPiece;
                 newBoard[selectedSquare.r][selectedSquare.c] = null;
                 
-                if (move.isJump) newBoard[move.midR][move.midC] = null; // 移除被吃的子
+                if (move.isJump) newBoard[move.midR][move.midC] = null; 
 
-                // 升變為王 (King)
                 let justBecameKing = false;
                 if (movingPiece.player === 'r' && r === 0 && !movingPiece.king) {
                     movingPiece.king = true;
@@ -876,29 +1161,27 @@
                 let nextTurn = currentTurn;
                 let nextActivePiece = null;
 
-                // 連續吃子判定機制
                 if (move.isJump) {
-                    // 檢查到了新位置後，是否還能繼續吃子
                     const furtherJumps = getCheckersValidMoves(r, c, movingPiece, newBoard).filter(m => m.isJump);
-                    
-                    // 如果還可以繼續吃，並且不是剛升變為國王(依照常見規則，剛升變的回合須立即結束)
                     if (furtherJumps.length > 0 && !justBecameKing) {
-                        nextActivePiece = {r, c}; // 鎖定這顆棋子為下一步的強制作動者
+                        nextActivePiece = {r, c}; 
                     } else {
-                        nextTurn = currentTurn === 'r' ? 'b' : 'r'; // 結束回合
+                        nextTurn = currentTurn === 'r' ? 'b' : 'r'; 
                     }
                 } else {
-                    nextTurn = currentTurn === 'r' ? 'b' : 'r'; // 普通移動，直接換手
+                    nextTurn = currentTurn === 'r' ? 'b' : 'r'; 
                 }
+
+                const updateData = {
+                    checkersBoard: newBoard, 
+                    checkersTurn: nextTurn,
+                    checkersActivePiece: nextActivePiece,
+                    lastCheckersMove: { fromR: selectedSquare.r, fromC: selectedSquare.c, toR: r, toC: c, moveId: Date.now() }
+                };
 
                 selectedSquare = null; 
                 validMovesCache = [];
-                
-                update(ref(db, `chsgame_room/${currentRoomId}`), { 
-                    checkersBoard: newBoard, 
-                    checkersTurn: nextTurn,
-                    checkersActivePiece: nextActivePiece
-                });
+                update(ref(db, `chsgame_room/${currentRoomId}`), updateData);
             } else {
                 selectedSquare = null; 
                 validMovesCache = [];
@@ -913,11 +1196,18 @@
     window.requestRestart = () => {
         if (!roomDataCache) return;
         if (confirm("確定要重新開始嗎？")) {
-            gameOverTriggered = false; // 重置勝利動畫標記
+            gameOverTriggered = false; 
             if (roomDataCache.type === 'chess') {
-                update(ref(db, `chsgame_room/${currentRoomId}`), { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1' });
+                const updates = { fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', lastMove: null };
+                if (roomDataCache.timeControl) {
+                    updates['timeControl/p1Time'] = roomDataCache.timeControl.initialTime;
+                    updates['timeControl/p2Time'] = roomDataCache.timeControl.initialTime;
+                    updates['timeControl/started'] = false;
+                    updates['timeControl/lastMoveTime'] = null;
+                }
+                update(ref(db, `chsgame_room/${currentRoomId}`), updates);
             } else {
-                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: getInitialCheckersBoard(), checkersTurn: 'r', checkersActivePiece: null });
+                update(ref(db, `chsgame_room/${currentRoomId}`), { checkersBoard: getInitialCheckersBoard(), checkersTurn: 'r', checkersActivePiece: null, lastCheckersMove: null });
             }
             selectedSquare = null; validMovesCache = [];
         }
@@ -941,6 +1231,7 @@
     };
 
     window.leaveRoom = () => {
+        if (timerLoop) clearInterval(timerLoop);
         if (currentRoomId && currentUserKey) {
             update(ref(db, `chsgame_room/${currentRoomId}/users/${currentUserKey}`), { online: false }).then(() => location.reload());
         } else location.reload();
