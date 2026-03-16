@@ -197,9 +197,19 @@
             background-color: rgba(0, 0, 0, 0.3); border-radius: 50%; pointer-events: none;
         }
 
-        /* 玩家移動後的軌跡高亮 (淡綠色) */
+        /* 玩家移動後的軌跡高亮 (綠色框框) */
         .last-move-highlight {
-            background-color: rgba(134, 239, 172, 0.6) !important;
+            z-index: 1;
+            animation: pulse-move 2s infinite alternate;
+        }
+
+        @keyframes pulse-move {
+            from { 
+                box-shadow: inset 0 0 0 4px rgba(51, 255, 51, 0.3); 
+            }
+            to { 
+                box-shadow: inset 0 0 0 4px rgba(51, 255, 51, 0.9); 
+            }
         }
 
         /* 棋子移動的滑動動畫 */
@@ -437,13 +447,13 @@
     };
 
     // --- 人數統計 ---
-    const onlineRef = push(ref(db, 'chsgame_global/online'));
+    const onlineRef = push(ref(db, 'online'));
     onDisconnect(onlineRef).remove();
     set(onlineRef, true);
 
     let totalOnlineCount = 0;
     let totalInGameCount = 0;
-    onValue(ref(db, 'chsgame_global/online'), (snapshot) => { totalOnlineCount = snapshot.val() ? Object.keys(snapshot.val()).length : 0; updateStatsUI(); });
+    onValue(ref(db, 'online'), (snapshot) => { totalOnlineCount = snapshot.val() ? Object.keys(snapshot.val()).length : 0; updateStatsUI(); });
 
     // --- 大廳房間列表 ---
     onValue(ref(db, 'chsgame_room'), (snapshot) => {
