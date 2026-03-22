@@ -282,6 +282,12 @@
             100% { opacity: 1; }
         }
 
+        /* 翻轉模式：黑方計時器旋轉 180 度 */
+        .timer-flipped {
+            transform: rotate(180deg);
+            display: inline-block;
+        }
+
     </style>
 </head>
 <body>
@@ -331,7 +337,10 @@
 <div id="gameArea" class="container hidden">
     <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3 id="roomDisplayInfo" style="margin:5px 0; color: #fff;"></h3>
-        <button class="btn-sm btn-red" onclick="leaveRoom()">離開房間</button>
+        <div style="display:flex; align-items:center; gap:6px;">
+            <button id="btn-pause" class="btn-sm" style="background:#f59e0b; font-size:1.1em; padding:6px 10px;" onclick="togglePause()" title="暫停/繼續">▶️</button>
+            <button class="btn-sm btn-red" onclick="leaveRoom()">離開房間</button>
+        </div>
     </div>
     <div id="gameMetaInfo" style="font-size: 0.85em; color: #94a3b8; margin-bottom: 15px;"></div>
     
@@ -422,10 +431,63 @@
     // 新增: 翻轉模式狀態控制
     let flipModeEnabled = false;
 
+    // 新增: 暫停狀態控制
+    let isPaused = false;
+    let pausedAt = null; // 暫停時的時間戳
+
     // 遊戲狀態控制
     let chessInstance = new Chess();
     let selectedSquare = null; 
     let validMovesCache = []; 
+
+    // --- 暫停/繼續 切換功能 ---
+    window.togglePause = () => {
+        isPaused = !isPaused;
+        const btn = document.getElementById('btn-pause');
+        if (isPaused) {
+            btn.innerText = '⏸️';
+            btn.title = '繼續遊戲';
+            pausedAt = Date.now();
+
+            // 暫停瞬間：計算當下剩餘時間快照，並寫入 Firebase
+            // 同時將 lastMoveTime 設為極大值，讓 elapsed 永遠為 0
+            if (roomDataCache && roomDataCache.timeControl && roomDataCache.timeControl.started) {
+                const tc = roomDataCache.timeControl;
+                const elapsed = Date.now() - tc.lastMoveTime;
+                const isP1Turn = chessInstance.turn() === 'w';
+                let timeToSubtract = elapsed;
+                if (tc.mode === 'delay') timeToSubtract = Math.max(0, elapsed - 5000);
+
+                if (isP1Turn) {
+                    tc.p1Time = Math.max(0, tc.p1Time - timeToSubtract);
+                } else {
+                    tc.p2Time = Math.max(0, tc.p2Time - timeToSubtract);
+                }
+                // lastMoveTime 設為極大值：Date.now() + 9999秒
+                // 讓 elapsed = Date.now() - lastMoveTime 永遠是負數 → timeToSubtract = 0
+                tc.lastMoveTime = Date.now() + 9999 * 1000;
+
+                // 寫入 Firebase，退出後也能保持凍結
+                update(ref(db, `chsgame_room/${currentRoomId}/timeControl`), {
+                    p1Time: tc.p1Time,
+                    p2Time: tc.p2Time,
+                    lastMoveTime: tc.lastMoveTime
+                });
+            }
+        } else {
+            btn.innerText = '▶️';
+            btn.title = '暫停遊戲';
+            // 繼續時：把 lastMoveTime 設為現在，讓計時從暫停點重新開始
+            if (roomDataCache && roomDataCache.timeControl) {
+                roomDataCache.timeControl.lastMoveTime = Date.now();
+                // 同步寫回 Firebase
+                update(ref(db, `chsgame_room/${currentRoomId}/timeControl`), {
+                    lastMoveTime: Date.now()
+                });
+            }
+            pausedAt = null;
+        }
+    };
 
     // --- 翻轉模式切換功能 ---
     window.toggleFlipMode = () => {
@@ -631,6 +693,19 @@
         onValue(ref(db, 'chsgame_room/' + id), (snapshot) => {
             const data = snapshot.val();
             if (!data) { alert("房間已關閉"); return leaveRoom(); }
+
+            // 從 Firebase 偵測暫停狀態：lastMoveTime 超過未來 60 秒代表暫停中
+            if (data.timeControl && data.timeControl.lastMoveTime) {
+                const fbPaused = data.timeControl.lastMoveTime > Date.now() + 60000;
+                if (fbPaused && !isPaused) {
+                    // Firebase 是暫停狀態，但本地尚未同步 → 恢復暫停
+                    isPaused = true;
+                    pausedAt = Date.now();
+                    const btn = document.getElementById('btn-pause');
+                    if (btn) { btn.innerText = '⏸️'; btn.title = '繼續遊戲'; }
+                }
+            }
+
             roomDataCache = data;
             
             updatePlayerInfo(data);
@@ -670,7 +745,7 @@
             let p1Current = tc.p1Time;
             let p2Current = tc.p2Time;
 
-            if (tc.started && !chessInstance.game_over() && !gameOverTriggered) {
+            if (tc.started && !chessInstance.game_over() && !gameOverTriggered && !isPaused) {
                 const elapsed = Date.now() - tc.lastMoveTime;
                 const isP1Turn = chessInstance.turn() === 'w';
 
@@ -686,10 +761,10 @@
                 }
             }
 
-            if (p1Current <= 0 && tc.started && !gameOverTriggered) {
+            if (p1Current <= 0 && tc.started && !gameOverTriggered && !isPaused) {
                 p1Current = 0;
                 handleTimeout('w');
-            } else if (p2Current <= 0 && tc.started && !gameOverTriggered) {
+            } else if (p2Current <= 0 && tc.started && !gameOverTriggered && !isPaused) {
                 p2Current = 0;
                 handleTimeout('b');
             }
@@ -708,20 +783,31 @@
         if (msLeft <= 0) msLeft = 0;
         const totalSeconds = msLeft / 1000;
 
+        let timeText;
+        let warnClass;
         if (totalSeconds <= 10) {
-            el.innerText = totalSeconds.toFixed(2);
-            el.className = 'player-timer timer-warning';
+            timeText = totalSeconds.toFixed(2);
+            warnClass = 'player-timer timer-warning';
         } else if (totalSeconds <= 30) {
             const m = Math.floor(totalSeconds / 60);
             const s = Math.floor(totalSeconds % 60);
-            el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
-            el.className = 'player-timer timer-warning';
+            timeText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            warnClass = 'player-timer timer-warning';
         } else {
             const m = Math.floor(totalSeconds / 60);
             const s = Math.floor(totalSeconds % 60);
-            el.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
-            el.className = 'player-timer';
+            timeText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            warnClass = 'player-timer';
         }
+
+        // 翻轉模式下，黑方(p2)計時器旋轉 180 度
+        const shouldFlipTimer = elementId === 'p2-timer' && flipModeEnabled && roomDataCache && roomDataCache.type === 'chess';
+        if (shouldFlipTimer) {
+            el.innerHTML = `<span class="timer-flipped">${timeText}</span>`;
+        } else {
+            el.innerText = timeText;
+        }
+        el.className = warnClass;
     }
 
     function handleTimeout(color) {
